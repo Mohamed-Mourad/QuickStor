@@ -18,7 +18,7 @@ jobs:
     
     defaults:
       run:
-        working-directory: ./quickstor-forntend
+        working-directory: ./quickstor-frontend
 
     steps:
       - name: Checkout
