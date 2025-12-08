@@ -8,7 +8,6 @@ const Navbar = () => {
 
   return (
     <nav className="fixed w-full z-50 border-b border-gray-900 bg-black/95 backdrop-blur-md">
-      {/* Updated max-w to match Hero */}
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-12 h-16 md:h-20 flex items-center justify-between">
         
         {/* Logo Area */}

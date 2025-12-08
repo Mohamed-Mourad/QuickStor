@@ -12,7 +12,6 @@ const PERFORMANCE_DATA = [
 const ComparisonGraph = () => {
   return (
     <section id="performance" className="py-16 md:py-24 bg-[#080808] border-y border-gray-900 relative">
-      {/* Updated max-w to match Hero */}
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-12">
         <div className="mb-12 md:mb-16 md:w-2/3 mx-auto md:mx-0 text-center md:text-left">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 md:mb-6">DOMINATE THE BENCHMARKS</h2>

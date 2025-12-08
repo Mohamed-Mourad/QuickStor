@@ -3,7 +3,6 @@ import { HardDrive } from 'lucide-react';
 
 const Footer = () => (
   <footer className="bg-black py-12 md:py-16 border-t border-gray-900">
-    {/* Updated max-w to match Hero */}
     <div className="max-w-screen-2xl mx-auto px-6 lg:px-12 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-12 text-sm text-center sm:text-left">
       <div className="col-span-1 sm:col-span-2 md:col-span-1 flex flex-col items-center sm:items-start">
         <div className="text-white font-bold text-xl mb-6 flex items-center gap-2">
