@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Menu, X } from 'lucide-react';
-import logo from '../assets/Quickstor logo.png';
 
-
-const Navbar = () => {
+const Navbar = ({ logo, links, ctaText }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  const navLinks = links || [];
 
   return (
     <nav className="fixed w-full z-50 border-b border-gray-900 bg-black/95 backdrop-blur-md">
@@ -12,22 +12,24 @@ const Navbar = () => {
         
         {/* Logo Area */}
         <div className="flex-shrink-0 flex items-center gap-3 group cursor-pointer">
-          <img 
-            src={logo} 
-            alt="QuickStor Systems" 
-            className="h-8 md:h-10 w-auto object-contain rounded-sm"
-          />
+          {logo && (
+            <img 
+              src={logo} 
+              alt="QuickStor Systems" 
+              className="h-8 md:h-10 w-auto object-contain rounded-sm"
+            />
+          )}
         </div>
 
         {/* Desktop Nav */}
         <div className="hidden md:flex gap-6 lg:gap-10 text-xs lg:text-sm font-medium text-gray-400">
-          {['PERFORMANCE', 'ZFS TECHNOLOGY', 'SOLUTIONS', 'SUPPORT'].map((item) => (
+          {navLinks.map((item) => (
             <a 
-              key={item} 
-              href={`#${item.toLowerCase().split(' ')[0]}`} 
+              key={item.label} 
+              href={item.href} 
               className="hover:text-blue-400 transition-colors relative group py-2"
             >
-              {item}
+              {item.label}
               <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-500 transition-all group-hover:w-full"></span>
             </a>
           ))}
@@ -36,7 +38,7 @@ const Navbar = () => {
         {/* CTA Button */}
         <div className="hidden md:block">
           <button className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 lg:px-8 rounded-sm skew-x-[-10deg] transition-all hover:shadow-[0_0_20px_rgba(37,99,235,0.5)] active:scale-95 text-xs lg:text-sm">
-            <span className="skew-x-[10deg] inline-block">BUILD SERVER</span>
+            <span className="skew-x-[10deg] inline-block">{ctaText}</span>
           </button>
         </div>
 
@@ -53,18 +55,18 @@ const Navbar = () => {
       {/* Mobile Nav Dropdown */}
       <div className={`md:hidden absolute w-full bg-black border-b border-gray-800 transition-all duration-300 ease-in-out overflow-hidden ${isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="p-4 space-y-4 flex flex-col items-center">
-          {['PERFORMANCE', 'ZFS TECHNOLOGY', 'SOLUTIONS', 'SUPPORT'].map((item) => (
+          {navLinks.map((item) => (
             <a 
-              key={item} 
-              href={`#${item.toLowerCase().split(' ')[0]}`} 
+              key={item.label} 
+              href={item.href} 
               className="block w-full text-center py-2 text-gray-400 hover:text-blue-400 font-bold hover:bg-gray-900 rounded transition-colors"
               onClick={() => setIsOpen(false)}
             >
-              {item}
+              {item.label}
             </a>
           ))}
           <button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-sm mt-4 active:scale-95 transition-transform">
-            BUILD SERVER
+            {ctaText}
           </button>
         </div>
       </div>
