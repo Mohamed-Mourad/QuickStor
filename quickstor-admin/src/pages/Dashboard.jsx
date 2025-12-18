@@ -1,17 +1,29 @@
 import React from 'react';
+import { Save } from 'lucide-react';
+import { Button } from '../components/ui/Button';
+import EditorContainer from '../features/editor/EditorContainer';
 
 const Dashboard = () => {
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">Page Builder</h1>
-        <div className="text-sm text-gray-500">
-          Manage your landing page content
+    <div className="space-y-4 h-full flex flex-col">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Page Editor</h1>
+          <p className="text-sm text-gray-500">
+            Drag sections to reorder. Click to edit content.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button variant="outline">Discard Changes</Button>
+          <Button className="gap-2">
+            <Save size={16} /> Save & Publish
+          </Button>
         </div>
       </div>
       
-      <div className="p-10 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400">
-        <p>Editor Interface will be loaded here...</p>
+      {/* Main Editor Area */}
+      <div className="flex-1 min-h-0">
+         <EditorContainer />
       </div>
     </div>
   );

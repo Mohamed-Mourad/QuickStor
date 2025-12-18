@@ -1,8 +1,8 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ContentProvider } from './hooks/useContentStore';
 
 // Layouts
-// Note: Matches your lowercase "layout" folder
 import AdminLayout from './components/layout/AdminLayout';
 import AuthLayout from './components/layout/AuthLayout';
 
@@ -13,22 +13,24 @@ import NotFound from './pages/NotFound';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public Routes (Login) */}
-        <Route element={<AuthLayout />}>
-          <Route path="/login" element={<Login />} />
-        </Route>
+    <ContentProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public Routes (Login) */}
+          <Route element={<AuthLayout />}>
+            <Route path="/login" element={<Login />} />
+          </Route>
 
-        {/* Protected Routes (Dashboard) */}
-        <Route element={<AdminLayout />}>
-          <Route path="/" element={<Dashboard />} />
-        </Route>
+          {/* Protected Routes (Dashboard) */}
+          <Route element={<AdminLayout />}>
+            <Route path="/" element={<Dashboard />} />
+          </Route>
 
-        {/* Catch-all */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
+          {/* Catch-all */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </ContentProvider>
   );
 }
 
