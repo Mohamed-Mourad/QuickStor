@@ -10,12 +10,14 @@ import ComparisonGraph from '../../../../quickstor-frontend/src/components/Compa
 import FeatureGrid from '../../../../quickstor-frontend/src/components/FeatureGrid';
 import Navbar from '../../../../quickstor-frontend/src/components/Navbar';
 import Footer from '../../../../quickstor-frontend/src/components/Footer';
+import CustomHTMLSection from '../../components/CustomHTMLSection';
 
 // In case the frontend doesn't export a SectionRenderer, we map it locally
 const COMPONENT_MAP = {
   'HERO': Hero,
   'COMPARISON_GRAPH': ComparisonGraph,
   'FEATURE_GRID': FeatureGrid,
+  'CUSTOM_HTML': CustomHTMLSection,
 };
 
 const LivePreview = () => {
@@ -35,20 +37,20 @@ const LivePreview = () => {
       <div className="flex-1 relative w-full h-full" style={{ transform: 'translate(0)' }}>
         <div className="absolute inset-0 overflow-y-auto bg-black">
           <div className="min-h-full text-white isolate">
-             {/* Navbar will now be fixed relative to the preview window */}
-             <Navbar {...defaultContent.navbar} /> 
-             
-             <div className="flex flex-col">
-               {sections.map((section) => {
-                 const Component = COMPONENT_MAP[section.type];
-                 if (!Component) return <div key={section.id} className="p-4 text-red-500">Unknown Component: {section.type}</div>;
-                 
-                 // Pass the content dynamically to the component
-                 return <Component key={section.id} {...section.content} />;
-               })}
-             </div>
+            {/* Navbar will now be fixed relative to the preview window */}
+            <Navbar {...defaultContent.navbar} />
 
-             <Footer {...defaultContent.footer} />
+            <div className="flex flex-col">
+              {sections.map((section) => {
+                const Component = COMPONENT_MAP[section.type];
+                if (!Component) return <div key={section.id} className="p-4 text-red-500">Unknown Component: {section.type}</div>;
+
+                // Pass the content dynamically to the component
+                return <Component key={section.id} {...section.content} />;
+              })}
+            </div>
+
+            <Footer {...defaultContent.footer} />
           </div>
         </div>
       </div>

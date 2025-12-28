@@ -1,0 +1,234 @@
+/**
+ * Gemini AI Service
+ * Handles API calls to Google's Gemini for intelligent data extraction
+ * Includes retry logic and fallback CSV parsing
+ */
+
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent';
+
+// Retry configuration
+const MAX_RETRIES = 3;
+const INITIAL_DELAY_MS = 2000;
+
+/**
+ * Sleep helper
+ */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Call Gemini API with a prompt and get a text response
+ * Includes exponential backoff retry logic
+ * @param {string} prompt - The full prompt to send
+ * @returns {Promise<string>} - The generated text response
+ */
+export async function callGeminiAPI(prompt) {
+    if (!GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please set VITE_GEMINI_API_KEY in your .env file.');
+    }
+
+    let lastError;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+            const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{ text: prompt }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.2,
+                        topK: 40,
+                        topP: 0.95,
+                        maxOutputTokens: 4096,
+                    }
+                })
+            });
+
+            if (response.status === 429 || response.status === 503) {
+                const delay = INITIAL_DELAY_MS * Math.pow(2, attempt);
+                console.log(`Rate limited. Retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+                await sleep(delay);
+                continue;
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `Gemini API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!text) {
+                throw new Error('No response generated from Gemini API');
+            }
+
+            return text;
+        } catch (error) {
+            lastError = error;
+            if (attempt < MAX_RETRIES - 1 && error.message?.includes('429')) {
+                const delay = INITIAL_DELAY_MS * Math.pow(2, attempt);
+                await sleep(delay);
+                continue;
+            }
+        }
+    }
+
+    throw lastError || new Error('Failed after multiple retries');
+}
+
+/**
+ * Call Gemini API with conversation history for multi-turn chat
+ * @param {Array} messages - Array of {role: 'user'|'model', text: string}
+ * @returns {Promise<string>} - The generated text response
+ */
+export async function callGeminiAPIWithHistory(messages) {
+    if (!GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please set VITE_GEMINI_API_KEY in your .env file.');
+    }
+
+    // Convert messages to Gemini format
+    const contents = messages.map(msg => ({
+        role: msg.role,
+        parts: [{ text: msg.text }]
+    }));
+
+    let lastError;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+            const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents,
+                    generationConfig: {
+                        temperature: 0.3,
+                        topK: 40,
+                        topP: 0.95,
+                        maxOutputTokens: 4096,
+                    }
+                })
+            });
+
+            if (response.status === 429 || response.status === 503) {
+                const delay = INITIAL_DELAY_MS * Math.pow(2, attempt);
+                await sleep(delay);
+                continue;
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `Gemini API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!text) {
+                throw new Error('No response generated from Gemini API');
+            }
+
+            return text;
+        } catch (error) {
+            lastError = error;
+            if (attempt < MAX_RETRIES - 1 && error.message?.includes('429')) {
+                const delay = INITIAL_DELAY_MS * Math.pow(2, attempt);
+                await sleep(delay);
+                continue;
+            }
+        }
+    }
+
+    throw lastError || new Error('Failed after multiple retries');
+}
+
+/**
+ * Extract JSON from a Gemini response (handles markdown code blocks)
+ */
+export function extractJSONFromResponse(text) {
+    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+        return JSON.parse(codeBlockMatch[1].trim());
+    }
+
+    const jsonMatch = text.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+    if (jsonMatch) {
+        return JSON.parse(jsonMatch[1]);
+    }
+
+    throw new Error('Could not extract valid JSON from AI response');
+}
+
+/**
+ * Fallback CSV parser when AI is unavailable
+ */
+export function parseCSVFallback(csvText, sectionType) {
+    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length < 2) {
+        throw new Error('File must contain a header row and at least one data row.');
+    }
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]+/g, ''));
+    const dataRows = lines.slice(1);
+
+    const parsedData = dataRows.map(line => {
+        const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(val => val.trim().replace(/^"|"$/g, ''));
+        const obj = {};
+        headers.forEach((header, i) => {
+            obj[header] = values[i];
+        });
+        return obj;
+    });
+
+    if (sectionType === 'COMPARISON_GRAPH') {
+        return parsedData.map(row => ({
+            name: row.name || 'Unknown',
+            iops: parseInt(row.iops) || 0,
+            throughput: parseInt(row.throughput) || 0
+        }));
+    } else if (sectionType === 'FEATURE_GRID') {
+        return parsedData.map(row => ({
+            icon: row.icon || 'Star',
+            title: row.title || 'Untitled Feature',
+            description: row.description || ''
+        }));
+    }
+
+    throw new Error('Unsupported section type for CSV fallback');
+}
+
+/**
+ * Main function to extract data from file content using AI
+ * Falls back to CSV parsing if AI fails
+ */
+export async function extractDataWithAI(fileContent, sectionType, getPrompt) {
+    try {
+        const prompt = getPrompt(sectionType, fileContent);
+        const response = await callGeminiAPI(prompt);
+        const extractedData = extractJSONFromResponse(response);
+        return { data: extractedData, method: 'ai' };
+    } catch (aiError) {
+        console.warn('AI extraction failed, trying CSV fallback:', aiError.message);
+
+        // Try CSV fallback
+        try {
+            const csvData = parseCSVFallback(fileContent, sectionType);
+            return { data: csvData, method: 'csv' };
+        } catch (csvError) {
+            // Both methods failed - throw a helpful error
+            throw new Error(
+                `AI extraction failed: ${aiError.message}\n\n` +
+                `CSV fallback also failed: ${csvError.message}\n\n` +
+                `Tip: For CSV format, use headers: name,iops,throughput (for graphs) or icon,title,description (for features)`
+            );
+        }
+    }
+}

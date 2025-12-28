@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, LogOut, Settings, Menu, X, ChevronDown, ChevronRight, Plus, FileText } from 'lucide-react';
+import { LayoutDashboard, LogOut, Settings, Menu, X, ChevronDown, ChevronRight, Plus, FileText, Library } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 const AdminLayout = () => {
@@ -116,6 +116,20 @@ const AdminLayout = () => {
               </div>
             )}
           </div>
+
+          {/* Section Library Link */}
+          <Link 
+            to="/sections"
+            onClick={() => setIsSidebarOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm transition-colors ${
+              location.pathname.startsWith('/sections')
+                ? 'bg-blue-600 text-white' 
+                : 'text-gray-400 hover:text-white hover:bg-gray-900'
+            }`}
+          >
+            <Library size={18} />
+            Section Library
+          </Link>
 
           {/* Settings Link */}
           <Link 

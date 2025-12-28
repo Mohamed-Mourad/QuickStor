@@ -1,13 +1,23 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { useContentStore } from '../../hooks/useContentStore';
 import { Label } from '../../components/ui/Label';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { Trash2, Plus, GripVertical, AlertCircle } from 'lucide-react';
+import Modal from '../../components/ui/Modal';
+import { Trash2, Plus, AlertCircle, Upload, Sparkles, Loader2, Check, X } from 'lucide-react';
+import { extractDataWithAI } from '../../utils/geminiService';
+import { getExtractionPrompt, validateExtractedData } from '../../utils/extractionPrompts';
 
 const PropertyPanel = () => {
   const { sections, selectedSectionId, updateSection } = useContentStore();
-  
+  const fileInputRef = useRef(null);
+
+  // AI Import State
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractedData, setExtractedData] = useState(null);
+  const [extractionError, setExtractionError] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
   const selectedSection = sections.find(s => s.id === selectedSectionId);
 
   if (!selectedSection) {
@@ -18,11 +28,100 @@ const PropertyPanel = () => {
     );
   }
 
+  // --- AI-Powered File Processing ---
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setIsExtracting(true);
+    setExtractionError(null);
+    setExtractedData(null);
+
+    try {
+      const text = await file.text();
+
+      // Call AI to extract data (with fallback to CSV)
+      const result = await extractDataWithAI(text, selectedSection.type, getExtractionPrompt);
+
+      // Validate the extracted data
+      if (!validateExtractedData(result.data, selectedSection.type)) {
+        throw new Error('Returned data in an unexpected format. Please try again or use a different file.');
+      }
+
+      setExtractedData(result); // Now stores { data, method }
+      setShowConfirmModal(true);
+    } catch (error) {
+      console.error('Extraction Error:', error);
+      setExtractionError(error.message || 'Failed to extract data. Please try again.');
+    } finally {
+      setIsExtracting(false);
+      event.target.value = ''; // Reset input
+    }
+  };
+
+  const applyExtractedData = () => {
+    if (!extractedData?.data) return;
+
+    const actualData = extractedData.data;
+
+    if (selectedSection.type === 'COMPARISON_GRAPH') {
+      updateSection(selectedSection.id, { ...selectedSection.content, data: actualData });
+    } else if (selectedSection.type === 'FEATURE_GRID') {
+      updateSection(selectedSection.id, { ...selectedSection.content, features: actualData });
+    } else if (selectedSection.type === 'HERO') {
+      updateSection(selectedSection.id, { ...selectedSection.content, ...actualData });
+    }
+
+    setShowConfirmModal(false);
+    setExtractedData(null);
+  };
+
+  const cancelExtraction = () => {
+    setShowConfirmModal(false);
+    setExtractedData(null);
+  };
+
+  const triggerFileUpload = () => {
+    fileInputRef.current.click();
+  };
+
   // Generic handler for top-level properties
   const handleChange = (key, value) => {
     const newContent = { ...selectedSection.content, [key]: value };
     updateSection(selectedSection.id, newContent);
   };
+
+  // --- AI Import Button Component ---
+  const AIImportButton = ({ compact = false }) => (
+    <div className="space-y-2">
+      <Button
+        onClick={triggerFileUpload}
+        disabled={isExtracting}
+        className={`w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-none shadow-md gap-2 ${compact ? 'h-9 text-xs' : 'h-10'}`}
+      >
+        {isExtracting ? (
+          <>
+            <Loader2 size={16} className="animate-spin" />
+            Extracting with AI...
+          </>
+        ) : (
+          <>
+            <Sparkles size={16} />
+            Import with AI ✨
+          </>
+        )}
+      </Button>
+      {extractionError && (
+        <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600 flex gap-2">
+          <AlertCircle size={14} className="shrink-0 mt-0.5" />
+          <span>{extractionError}</span>
+        </div>
+      )}
+      <p className="text-[10px] text-gray-500 text-center">
+        Upload any file format (CSV, TXT, MD, JSON) — AI will extract the data
+      </p>
+    </div>
+  );
 
   // --- Feature Grid Editor Logic ---
   const renderFeatureGridFields = () => {
@@ -48,9 +147,8 @@ const PropertyPanel = () => {
 
     return (
       <div className="space-y-6">
-        <div className="bg-blue-50 p-3 rounded-md text-xs text-blue-700 flex gap-2">
-          <AlertCircle size={16} className="shrink-0" />
-          <p>Tip: Use valid Lucide icon names (e.g., "Shield", "Zap", "Cpu").</p>
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
+          <AIImportButton compact />
         </div>
 
         {features.map((feature, index) => (
@@ -60,7 +158,7 @@ const PropertyPanel = () => {
               <span className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-500">
                 Item #{index + 1}
               </span>
-              <button 
+              <button
                 onClick={() => removeFeature(index)}
                 className="text-gray-400 hover:text-red-500 transition-colors p-1"
                 title="Remove Feature"
@@ -73,8 +171,8 @@ const PropertyPanel = () => {
               {/* Icon Input */}
               <div className="grid grid-cols-4 gap-2 items-center">
                 <Label className="col-span-1 text-xs text-gray-500">Icon</Label>
-                <Input 
-                  value={feature.icon} 
+                <Input
+                  value={feature.icon}
                   onChange={(e) => updateFeature(index, 'icon', e.target.value)}
                   className="col-span-3 h-8 text-sm text-gray-900"
                   placeholder="e.g. Shield"
@@ -84,8 +182,8 @@ const PropertyPanel = () => {
               {/* Title Input */}
               <div>
                 <Label className="text-xs text-gray-500 mb-1 block">Title</Label>
-                <Input 
-                  value={feature.title} 
+                <Input
+                  value={feature.title}
                   onChange={(e) => updateFeature(index, 'title', e.target.value)}
                   className="h-9 font-medium text-gray-900"
                 />
@@ -94,7 +192,7 @@ const PropertyPanel = () => {
               {/* Description Input */}
               <div>
                 <Label className="text-xs text-gray-500 mb-1 block">Description</Label>
-                <textarea 
+                <textarea
                   className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 min-h-[80px] resize-y placeholder:text-gray-400"
                   value={feature.description}
                   onChange={(e) => updateFeature(index, 'description', e.target.value)}
@@ -103,12 +201,100 @@ const PropertyPanel = () => {
             </div>
           </div>
         ))}
-        
+
         <Button onClick={addFeature} variant="outline" className="w-full border-dashed border-gray-300 hover:border-blue-500 hover:bg-blue-50 text-gray-600 gap-2 h-12">
           <Plus size={16} /> Add Feature Card
         </Button>
       </div>
     );
+  };
+
+  // --- Render Preview for Confirmation Modal ---
+  const renderExtractedDataPreview = () => {
+    if (!extractedData?.data) return null;
+
+    const data = extractedData.data;
+    const method = extractedData.method;
+
+    if (selectedSection.type === 'COMPARISON_GRAPH') {
+      return (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-600 mb-3">Found <strong>{data.length}</strong> performance entries:</p>
+          <table className="w-full text-sm border-collapse">
+            <thead className="bg-gray-100 text-gray-900">
+              <tr>
+                <th className="text-left p-2 border border-gray-300">Name</th>
+                <th className="text-right p-2 border border-gray-300">IOPS</th>
+                <th className="text-right p-2 border border-gray-300">Throughput</th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-900">
+              {data.map((row, i) => (
+                <tr key={i} className="hover:bg-gray-50">
+                  <td className="p-2 border border-gray-300">{row.name}</td>
+                  <td className="p-2 border border-gray-300 text-right font-mono">{row.iops.toLocaleString()}</td>
+                  <td className="p-2 border border-gray-300 text-right font-mono">{row.throughput.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {method === 'csv' && (
+            <p className="text-xs text-amber-600 mt-2">⚠️ Parsed using CSV fallback (AI unavailable)</p>
+          )}
+        </div>
+      );
+    }
+
+    if (selectedSection.type === 'FEATURE_GRID') {
+      return (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">Found <strong>{data.length}</strong> features:</p>
+          {data.map((feature, i) => (
+            <div key={i} className="p-3 bg-gray-50 rounded-lg border">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{feature.icon}</span>
+                <strong className="text-sm">{feature.title}</strong>
+              </div>
+              <p className="text-xs text-gray-600">{feature.description}</p>
+            </div>
+          ))}
+          {method === 'csv' && (
+            <p className="text-xs text-amber-600">⚠️ Parsed using CSV fallback (AI unavailable)</p>
+          )}
+        </div>
+      );
+    }
+
+    if (selectedSection.type === 'HERO') {
+      return (
+        <div className="space-y-3 text-sm">
+          <div className="p-3 bg-gray-50 rounded-lg border">
+            <p className="text-xs text-gray-500 mb-1">Badge</p>
+            <p className="font-mono">{data.badge}</p>
+          </div>
+          <div className="p-3 bg-gray-50 rounded-lg border">
+            <p className="text-xs text-gray-500 mb-1">Title</p>
+            <p><strong>{data.title?.line1}</strong> <span className="text-blue-600">{data.title?.highlight}</span></p>
+          </div>
+          <div className="p-3 bg-gray-50 rounded-lg border">
+            <p className="text-xs text-gray-500 mb-1">Subtitle</p>
+            <p>{data.subtitle}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-gray-50 rounded-lg border">
+              <p className="text-xs text-gray-500 mb-1">Primary CTA</p>
+              <p className="font-medium">{data.primaryCta}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg border">
+              <p className="text-xs text-gray-500 mb-1">Secondary CTA</p>
+              <p className="font-medium">{data.secondaryCta}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return <pre className="text-xs">{JSON.stringify(data, null, 2)}</pre>;
   };
 
   const renderFields = () => {
@@ -118,65 +304,74 @@ const PropertyPanel = () => {
       case 'HERO':
         return (
           <div className="space-y-6">
+            {/* AI Import Section */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
+              <AIImportButton />
+            </div>
+
+            <div className="border-t border-gray-200 pt-4">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Manual Edit</h4>
+            </div>
+
             <div className="space-y-2">
               <Label>Badge Text</Label>
-              <Input 
-                value={content.badge || ''} 
+              <Input
+                value={content.badge || ''}
                 onChange={(e) => handleChange('badge', e.target.value)}
-                className="text-gray-900" 
+                className="text-gray-900"
               />
             </div>
             <div className="space-y-2">
               <Label>Title (Line 1)</Label>
-              <Input 
-                value={content.title?.line1 || ''} 
-                onChange={(e) => updateSection(selectedSection.id, { 
-                  ...content, 
-                  title: { ...content.title, line1: e.target.value } 
+              <Input
+                value={content.title?.line1 || ''}
+                onChange={(e) => updateSection(selectedSection.id, {
+                  ...content,
+                  title: { ...content.title, line1: e.target.value }
                 })}
-                className="text-gray-900"  
+                className="text-gray-900"
               />
             </div>
-             <div className="space-y-2">
+            <div className="space-y-2">
               <Label>Title Highlight</Label>
-              <Input 
-                value={content.title?.highlight || ''} 
-                onChange={(e) => updateSection(selectedSection.id, { 
-                  ...content, 
-                  title: { ...content.title, highlight: e.target.value } 
+              <Input
+                value={content.title?.highlight || ''}
+                onChange={(e) => updateSection(selectedSection.id, {
+                  ...content,
+                  title: { ...content.title, highlight: e.target.value }
                 })}
-                className="text-gray-900"  
+                className="text-gray-900"
               />
             </div>
             <div className="space-y-2">
               <Label>Subtitle</Label>
-              <textarea 
+              <textarea
                 className="flex min-h-[100px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 placeholder:text-gray-400"
                 value={content.subtitle || ''}
                 onChange={(e) => handleChange('subtitle', e.target.value)}
               />
             </div>
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Primary CTA</Label>
-                  <Input 
-                    value={content.primaryCta || ''} 
-                    onChange={(e) => handleChange('primaryCta', e.target.value)}
-                    className="text-gray-900"  
-                  />
-                </div>
-                 <div className="space-y-2">
-                  <Label>Secondary CTA</Label>
-                  <Input 
-                    value={content.secondaryCta || ''} 
-                    onChange={(e) => handleChange('secondaryCta', e.target.value)}
-                    className="text-gray-900"  
-                  />
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Primary CTA</Label>
+                <Input
+                  value={content.primaryCta || ''}
+                  onChange={(e) => handleChange('primaryCta', e.target.value)}
+                  className="text-gray-900"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Secondary CTA</Label>
+                <Input
+                  value={content.secondaryCta || ''}
+                  onChange={(e) => handleChange('secondaryCta', e.target.value)}
+                  className="text-gray-900"
+                />
+              </div>
             </div>
           </div>
         );
-      
+
       case 'FEATURE_GRID':
         return renderFeatureGridFields();
 
@@ -185,22 +380,53 @@ const PropertyPanel = () => {
           <div className="space-y-6">
             <div className="space-y-2">
               <Label>Section Title</Label>
-              <Input 
-                value={content.title || ''} 
+              <Input
+                value={content.title || ''}
                 onChange={(e) => handleChange('title', e.target.value)}
-                className="text-gray-900"  
+                className="text-gray-900"
               />
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
-               <textarea 
+              <textarea
                 className="flex min-h-[120px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 placeholder:text-gray-400"
                 value={content.description || ''}
                 onChange={(e) => handleChange('description', e.target.value)}
               />
             </div>
-            <div className="p-4 bg-gray-100 text-gray-500 text-sm rounded border border-gray-200 text-center">
-              Graph data editing coming soon.
+
+            {/* Graph Data Import Area */}
+            <div className="p-4 bg-gradient-to-br from-gray-50 to-blue-50 border border-gray-200 rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-gray-900">Performance Data</h4>
+                <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                  {(content.data || []).length} Entries
+                </span>
+              </div>
+
+              <AIImportButton />
+
+              {/* Mini Preview of Data */}
+              <div className="mt-2 border-t border-gray-200 pt-2 max-h-32 overflow-y-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className="text-[10px] text-gray-400 uppercase bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="py-1">Name</th>
+                      <th className="py-1 text-right">IOPS</th>
+                      <th className="py-1 text-right">MB/s</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-[10px] text-gray-700 font-mono">
+                    {(content.data || []).map((row, i) => (
+                      <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-gray-100">
+                        <td className="py-1 truncate max-w-[80px]" title={row.name}>{row.name}</td>
+                        <td className="py-1 text-right">{row.iops.toLocaleString()}</td>
+                        <td className="py-1 text-right">{row.throughput.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         );
@@ -221,7 +447,16 @@ const PropertyPanel = () => {
           ID: {selectedSection.id}
         </p>
       </div>
-      
+
+      {/* Hidden File Input - Accept multiple formats */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept=".csv,.txt,.md,.json,.text"
+        onChange={handleFileUpload}
+      />
+
       <div className="p-5 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-gray-200">
         {renderFields()}
       </div>
@@ -231,6 +466,41 @@ const PropertyPanel = () => {
           Reset Section to Defaults
         </Button>
       </div>
+
+      {/* Confirmation Modal */}
+      <Modal
+        isOpen={showConfirmModal}
+        onClose={cancelExtraction}
+        title="AI Extraction Results"
+        className="max-w-lg"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg">
+            <Check size={18} />
+            <span className="text-sm font-medium">Data extracted successfully!</span>
+          </div>
+
+          <div className="max-h-80 overflow-y-auto">
+            {renderExtractedDataPreview()}
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              onClick={cancelExtraction}
+              variant="outline"
+              className="flex-1 gap-2"
+            >
+              <X size={16} /> Cancel
+            </Button>
+            <Button
+              onClick={applyExtractedData}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2"
+            >
+              <Check size={16} /> Apply Data
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
