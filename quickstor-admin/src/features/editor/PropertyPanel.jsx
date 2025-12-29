@@ -41,7 +41,7 @@ const PropertyPanel = () => {
       const text = await file.text();
 
       // Call AI to extract data (with fallback to CSV)
-      const result = await extractDataWithAI(text, selectedSection.type, getExtractionPrompt);
+      const result = await extractDataWithAI(text, selectedSection, getExtractionPrompt);
 
       // Validate the extracted data
       if (!validateExtractedData(result.data, selectedSection.type)) {
@@ -70,6 +70,11 @@ const PropertyPanel = () => {
       updateSection(selectedSection.id, { ...selectedSection.content, features: actualData });
     } else if (selectedSection.type === 'HERO') {
       updateSection(selectedSection.id, { ...selectedSection.content, ...actualData });
+    } else if (selectedSection.type === 'CUSTOM_HTML') {
+      updateSection(selectedSection.id, {
+        ...selectedSection.content,
+        content: { ...selectedSection.content.content, ...actualData }
+      });
     }
 
     setShowConfirmModal(false);
@@ -294,6 +299,32 @@ const PropertyPanel = () => {
       );
     }
 
+    if (selectedSection.type === 'CUSTOM_HTML') {
+      return (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-600 mb-2">Mapped content from file:</p>
+          <div className="bg-gray-50 rounded-lg border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100 text-gray-700">
+                <tr>
+                  <th className="text-left p-2 font-medium">Field</th>
+                  <th className="text-left p-2 font-medium">Extracted Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {Object.entries(data).map(([key, value]) => (
+                  <tr key={key}>
+                    <td className="p-2 font-mono text-xs text-gray-500">{key}</td>
+                    <td className="p-2 text-gray-900 truncate max-w-xs" title={String(value)}>{String(value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
     return <pre className="text-xs">{JSON.stringify(data, null, 2)}</pre>;
   };
 
@@ -428,6 +459,51 @@ const PropertyPanel = () => {
                 </table>
               </div>
             </div>
+          </div>
+        );
+
+      case 'CUSTOM_HTML':
+        if (!content.schema || content.schema.length === 0) {
+          return <div className="p-4 text-center text-gray-500 italic">No editable fields defined for this section.</div>;
+        }
+
+        const handleCustomChange = (key, value) => {
+          updateSection(selectedSection.id, {
+            ...content,
+            content: { ...content.content, [key]: value }
+          });
+        };
+
+        return (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
+              <AIImportButton />
+            </div>
+
+            <div className="border-t border-gray-200 pt-4">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Content Fields</h4>
+            </div>
+
+            {content.schema.map((field) => (
+              <div key={field.key} className="space-y-2">
+                <Label>{field.label}</Label>
+                {field.type === 'textarea' ? (
+                  <textarea
+                    className="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 placeholder:text-gray-400"
+                    value={content.content?.[field.key] || ''}
+                    onChange={(e) => handleCustomChange(field.key, e.target.value)}
+                    placeholder={field.description}
+                  />
+                ) : (
+                  <Input
+                    value={content.content?.[field.key] || ''}
+                    onChange={(e) => handleCustomChange(field.key, e.target.value)}
+                    className="text-gray-900"
+                    placeholder={field.description}
+                  />
+                )}
+              </div>
+            ))}
           </div>
         );
 

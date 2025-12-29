@@ -48,7 +48,9 @@ const SectionLibrary = () => {
       description: s.prompt?.substring(0, 60) + '...' || 'AI-generated section',
       lastModified: new Date(s.createdAt).toLocaleDateString(),
       isBuiltIn: false,
-      html: s.html
+      html: s.html,
+      schema: s.schema,
+      defaultContent: s.defaultContent
     }))
   ];
 

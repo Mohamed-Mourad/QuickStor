@@ -60,10 +60,13 @@ export const getAIPromptPrefix = () => {
   return `You are an expert UI developer creating sections for the QuickStor website - a high-performance ZFS storage appliance company.
 
 ## CRITICAL OUTPUT RULES
-1. Return ONLY the HTML code, no explanations or markdown code blocks
-2. Use only Tailwind CSS classes - no custom CSS
-3. The section should work standalone and be visually complete
-4. All text should be visible (use text-white, text-gray-300, text-gray-400 for different emphasis)
+1. Return ONLY a valid JSON object. Do not wrap it in markdown code blocks.
+2. The JSON object must have three keys: "html", "schema", and "defaultContent".
+3. "html": String containing the section HTML. Use Handlebars syntax (e.g., {{title}}) for dynamic content.
+4. "schema": Array of objects defining the editable fields. Each object should have: "key", "label", "type" (text, textarea), "description".
+5. "defaultContent": Object key-value pairs matching the schema keys and providing the initial content.
+6. Use only Tailwind CSS classes.
+7. The section should work standalone and be visually complete.
 
 ## DESIGN SYSTEM
 
@@ -106,13 +109,7 @@ export const getAIPromptPrefix = () => {
 - Use max-w-screen-xl or max-w-7xl for container widths
 - Standard section padding: py-20 md:py-32 px-4 sm:px-6 lg:px-12
 - Use grid or flex for layouts
-- Always include responsive breakpoints
-
-### Content Guidelines
-- Use professional, technical language appropriate for enterprise storage
-- Include realistic placeholder text (not "Lorem ipsum")
-- Reference ZFS, RAID-Z, IOPS, throughput where appropriate
-- Highlight performance, reliability, and enterprise features`;
+- Always include responsive breakpoints`;
 };
 
 /**
@@ -125,6 +122,19 @@ export const getSectionGenerationPrompt = (userPrompt) => {
 Create a website section based on this description:
 "${userPrompt}"
 
-## OUTPUT
-Generate clean, semantic HTML with Tailwind classes. Start with a <section> tag. Return ONLY the HTML:`;
+## OUTPUT SCHEMA
+Return a JSON object with this structure:
+{
+  "html": "<section class='...'> <h2>{{title}}</h2> <p>{{description}}</p> </section>",
+  "schema": [
+    { "key": "title", "label": "Section Title", "type": "text", "description": "Main heading" },
+    { "key": "description", "label": "Description", "type": "textarea", "description": "Subtitle text" }
+  ],
+  "defaultContent": {
+    "title": "Generated Title",
+    "description": "Generated description..."
+  }
+}
+Identify the variable parts of the section (headings, descriptions, button text, stats) and create schema fields for them.
+RETURN ONLY VALID JSON.`;
 };

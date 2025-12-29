@@ -17,12 +17,83 @@ const INITIAL_DELAY_MS = 2000;
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Call Gemini API with a prompt and get a text response
- * Includes exponential backoff retry logic
+ * Call Gemini API with a prompt and stream the response
  * @param {string} prompt - The full prompt to send
- * @returns {Promise<string>} - The generated text response
+ * @param {function(string): void} onChunk - Callback for each text chunk
+ * @returns {Promise<string>} - The full generated text response
  */
-export async function callGeminiAPI(prompt) {
+export async function callGeminiAPIStream(prompt, onChunk) {
+    if (!GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured.');
+    }
+
+    const STREAM_URL = GEMINI_API_URL.replace('generateContent', 'streamGenerateContent');
+    let fullText = '';
+
+    try {
+        const response = await fetch(`${STREAM_URL}?key=${GEMINI_API_KEY}&alt=sse`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.2,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 4096,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || `Gemini API error: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const jsonStr = line.substring(6); // Remove 'data: '
+                        const data = JSON.parse(jsonStr);
+                        const textChunk = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                        if (textChunk) {
+                            fullText += textChunk;
+                            if (onChunk) onChunk(textChunk, fullText);
+                        }
+                    } catch (e) {
+                        // Ignore parse errors for incomplete chunks or "data: [DONE]"
+                    }
+                }
+            }
+        }
+
+        if (!fullText) {
+            throw new Error('No response generated from Gemini API');
+        }
+
+        return fullText;
+
+    } catch (error) {
+        console.error('Streaming error:', error);
+        // Fallback to non-streaming if streaming fails
+        return callGeminiAPI(prompt);
+    }
+}
+
+/**
+ * Call Gemini API with a prompt and get a text response
+// ... existing callGeminiAPI code ...
     if (!GEMINI_API_KEY) {
         throw new Error('Gemini API key not configured. Please set VITE_GEMINI_API_KEY in your .env file.');
     }
@@ -80,6 +151,80 @@ export async function callGeminiAPI(prompt) {
     }
 
     throw lastError || new Error('Failed after multiple retries');
+}
+
+/**
+ * Call Gemini API with conversation history for multi-turn chat (Streaming)
+ * @param {Array} messages - Array of {role: 'user'|'model', text: string}
+ * @param {function(string, string): void} onChunk - Callback(chunk, fullText)
+ * @returns {Promise<string>} - The full generated text response
+ */
+export async function callGeminiAPIWithHistoryStream(messages, onChunk) {
+    if (!GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured.');
+    }
+
+    const STREAM_URL = GEMINI_API_URL.replace('generateContent', 'streamGenerateContent');
+    const contents = messages.map(msg => ({
+        role: msg.role,
+        parts: [{ text: msg.text }]
+    }));
+
+    let fullText = '';
+
+    try {
+        const response = await fetch(`${STREAM_URL}?key=${GEMINI_API_KEY}&alt=sse`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents,
+                generationConfig: {
+                    temperature: 0.2,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 4096,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Gemini API error: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const jsonStr = line.substring(6);
+                        const data = JSON.parse(jsonStr);
+                        const textChunk = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                        if (textChunk) {
+                            fullText += textChunk;
+                            if (onChunk) onChunk(textChunk, fullText);
+                        }
+                    } catch (e) {
+                        // Ignore
+                    }
+                }
+            }
+        }
+
+        return fullText;
+    } catch (error) {
+        console.error('Streaming error:', error);
+        // Fallback
+        return callGeminiAPIWithHistory(messages);
+    }
 }
 
 /**
@@ -209,9 +354,11 @@ export function parseCSVFallback(csvText, sectionType) {
  * Main function to extract data from file content using AI
  * Falls back to CSV parsing if AI fails
  */
-export async function extractDataWithAI(fileContent, sectionType, getPrompt) {
+export async function extractDataWithAI(fileContent, sectionOrType, getPrompt) {
+    const sectionType = typeof sectionOrType === 'object' ? sectionOrType.type : sectionOrType;
+
     try {
-        const prompt = getPrompt(sectionType, fileContent);
+        const prompt = getPrompt(sectionOrType, fileContent);
         const response = await callGeminiAPI(prompt);
         const extractedData = extractJSONFromResponse(response);
         return { data: extractedData, method: 'ai' };

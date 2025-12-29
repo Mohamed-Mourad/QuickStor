@@ -7,6 +7,7 @@ import { Input } from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
 import { CodeHighlighter } from '../components/ui/CodeHighlighter';
 import { generateSectionHTML, editSectionWithChat, saveToLibrary } from '../utils/sectionGeneratorService';
+import CustomHTMLSection from '../components/CustomHTMLSection';
 
 const SectionCreator = () => {
   const navigate = useNavigate();
@@ -21,7 +22,12 @@ const SectionCreator = () => {
 
   // Generated content
   const [generatedCode, setGeneratedCode] = useState('');
+  const [sectionSchema, setSectionSchema] = useState([]);
+  const [sectionContent, setSectionContent] = useState({});
   const [viewMode, setViewMode] = useState('preview');
+
+  // Streaming state
+  const [streamingContent, setStreamingContent] = useState('');
 
   // Publish modal state
   const [showPublishModal, setShowPublishModal] = useState(false);
@@ -31,7 +37,7 @@ const SectionCreator = () => {
   // Scroll to bottom of chat when new messages arrive
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory]);
+  }, [chatHistory, streamingContent]);
 
   const handleSendMessage = async () => {
     if (!currentMessage.trim() || isGenerating) return;
@@ -40,6 +46,7 @@ const SectionCreator = () => {
     setCurrentMessage('');
     setError(null);
     setIsGenerating(true);
+    setStreamingContent('');
 
     // Add user message to chat
     const newUserMessage = { role: 'user', content: userMessage };
@@ -47,14 +54,19 @@ const SectionCreator = () => {
 
     try {
       let result;
+      const onProgress = (chunk, fullText) => {
+        setStreamingContent(prev => prev + chunk);
+      };
 
       if (!generatedCode) {
         // First message = initial generation
-        result = await generateSectionHTML(userMessage);
+        result = await generateSectionHTML(userMessage, onProgress);
       } else {
         // Subsequent messages = edit existing
-        result = await editSectionWithChat(chatHistory, generatedCode, userMessage);
+        result = await editSectionWithChat(chatHistory, generatedCode, userMessage, onProgress);
       }
+
+      setStreamingContent('');
 
       if (result.error) {
         setError(result.error);
@@ -66,6 +78,9 @@ const SectionCreator = () => {
         }]);
       } else {
         setGeneratedCode(result.html);
+        setSectionSchema(result.schema || []);
+        setSectionContent(result.defaultContent || {});
+
         // Add success message to chat
         setChatHistory(prev => [...prev, {
           role: 'assistant',
@@ -96,6 +111,8 @@ const SectionCreator = () => {
   const handleStartOver = () => {
     setChatHistory([]);
     setGeneratedCode('');
+    setSectionSchema([]);
+    setSectionContent({});
     setError(null);
   };
 
@@ -115,6 +132,8 @@ const SectionCreator = () => {
       saveToLibrary({
         name: sectionName || 'Custom Section',
         html: generatedCode,
+        schema: sectionSchema,
+        defaultContent: sectionContent,
         prompt: firstUserMessage?.content || ''
       });
 
@@ -232,12 +251,25 @@ const SectionCreator = () => {
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0">
                       <Bot size={16} className="text-white" />
                     </div>
-                    <div className="bg-gray-100 px-4 py-3 rounded-2xl rounded-bl-md">
-                      <div className="flex gap-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
+                    <div className="bg-gray-100 px-4 py-3 rounded-2xl rounded-bl-md max-w-[80%]">
+                      {streamingContent ? (
+                        <div className="text-sm space-y-2">
+                          <p className="whitespace-pre-wrap font-mono text-xs text-gray-600">
+                            {streamingContent.length > 300
+                              ? '...' + streamingContent.slice(-300)
+                              : streamingContent}
+                          </p>
+                          <div className="h-1 bg-gray-200 rounded-full overflow-hidden w-full">
+                            <div className="h-full bg-blue-500 animate-[loading_1s_ease-in-out_infinite] w-1/3"></div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -309,7 +341,7 @@ const SectionCreator = () => {
             {generatedCode ? (
               viewMode === 'preview' ? (
                 <div className="w-full h-full bg-[#050505] overflow-auto">
-                  <div dangerouslySetInnerHTML={{ __html: generatedCode }} />
+                  <CustomHTMLSection html={generatedCode} content={sectionContent} />
                 </div>
               ) : (
                 <CodeHighlighter code={generatedCode} className="text-xs" />

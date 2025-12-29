@@ -4,26 +4,58 @@
  */
 
 const AVAILABLE_ICONS = [
-    'Shield', 'ShieldCheck', 'Lock', 'Key', 'Zap', 'Cpu', 'Server', 'Database',
-    'HardDrive', 'Activity', 'BarChart', 'LineChart', 'TrendingUp', 'Gauge',
-    'Clock', 'Timer', 'RefreshCw', 'RotateCcw', 'Cloud', 'CloudOff', 'Download',
-    'Upload', 'Wifi', 'Signal', 'Globe', 'Network', 'Share2', 'GitBranch',
-    'Layers', 'Box', 'Package', 'Archive', 'Folder', 'File', 'FileText',
-    'Settings', 'Sliders', 'Tool', 'Wrench', 'Cog', 'CheckCircle', 'Check',
-    'AlertCircle', 'AlertTriangle', 'Info', 'HelpCircle', 'Star', 'Heart',
-    'ThumbsUp', 'Award', 'Trophy', 'Target', 'Crosshair', 'Eye', 'EyeOff',
-    'Search', 'Maximize', 'Minimize', 'Move', 'ArrowRight', 'ArrowUp', 'Rocket'
+  'Shield', 'ShieldCheck', 'Lock', 'Key', 'Zap', 'Cpu', 'Server', 'Database',
+  'HardDrive', 'Activity', 'BarChart', 'LineChart', 'TrendingUp', 'Gauge',
+  'Clock', 'Timer', 'RefreshCw', 'RotateCcw', 'Cloud', 'CloudOff', 'Download',
+  'Upload', 'Wifi', 'Signal', 'Globe', 'Network', 'Share2', 'GitBranch',
+  'Layers', 'Box', 'Package', 'Archive', 'Folder', 'File', 'FileText',
+  'Settings', 'Sliders', 'Tool', 'Wrench', 'Cog', 'CheckCircle', 'Check',
+  'AlertCircle', 'AlertTriangle', 'Info', 'HelpCircle', 'Star', 'Heart',
+  'ThumbsUp', 'Award', 'Trophy', 'Target', 'Crosshair', 'Eye', 'EyeOff',
+  'Search', 'Maximize', 'Minimize', 'Move', 'ArrowRight', 'ArrowUp', 'Rocket'
 ];
 
 /**
  * Get the extraction prompt for a given section type
- * @param {string} sectionType - The section type (COMPARISON_GRAPH, FEATURE_GRID, HERO)
+ * @param {string|Object} sectionOrType - The section type string or section object
  * @param {string} fileContent - The raw file content to extract from
  * @returns {string} - The complete prompt to send to Gemini
  */
-export function getExtractionPrompt(sectionType, fileContent) {
-    const prompts = {
-        COMPARISON_GRAPH: `You are a data extraction assistant. Extract performance benchmark data from the following document.
+export function getExtractionPrompt(sectionOrType, fileContent) {
+  const sectionType = typeof sectionOrType === 'object' ? sectionOrType.type : sectionOrType;
+
+  if (sectionType === 'CUSTOM_HTML') {
+    const schema = sectionOrType.content?.schema || [];
+    const schemaDescription = schema.map(field =>
+      `- "${field.key}": ${field.description} (Type: ${field.type})`
+    ).join('\n');
+
+    return `You are a data extraction assistant. Extract content from the document to populate a website section.
+
+OUTPUT SCHEMA (JSON Only):
+{
+  ${schema.map(field => `"${field.key}": "extracted value"`).join(',\n  ')}
+}
+
+FIELD DETAILS:
+${schemaDescription}
+
+EXTRACTION RULES:
+- Extract the most relevant information for each field from the document.
+- If a field cannot be found, use an empty string or a reasonable default based on context.
+- Keep text concise and suitable for a website section.
+- Return ONLY the JSON object, no explanation.
+
+DOCUMENT CONTENT:
+"""
+${fileContent.substring(0, 8000)}
+"""
+
+JSON OUTPUT:`;
+  }
+
+  const prompts = {
+    COMPARISON_GRAPH: `You are a data extraction assistant. Extract performance benchmark data from the following document.
 
 The data should be formatted as a JSON array where each item represents a competitor or product with their performance metrics.
 
@@ -51,7 +83,7 @@ ${fileContent}
 
 JSON OUTPUT:`,
 
-        FEATURE_GRID: `You are a data extraction assistant. Extract feature/benefit information from the following document to create feature cards.
+    FEATURE_GRID: `You are a data extraction assistant. Extract feature/benefit information from the following document to create feature cards.
 
 OUTPUT SCHEMA (strict):
 [
@@ -80,7 +112,7 @@ ${fileContent}
 
 JSON OUTPUT:`,
 
-        HERO: `You are a data extraction assistant. Extract landing page hero section content from the following document.
+    HERO: `You are a data extraction assistant. Extract landing page hero section content from the following document.
 
 OUTPUT SCHEMA (strict):
 {
@@ -110,9 +142,9 @@ ${fileContent}
 """
 
 JSON OUTPUT:`
-    };
+  };
 
-    return prompts[sectionType] || prompts.FEATURE_GRID; // Default to feature grid
+  return prompts[sectionType] || prompts.FEATURE_GRID; // Default to feature grid
 }
 
 /**
@@ -122,34 +154,41 @@ JSON OUTPUT:`
  * @returns {boolean} - Whether the data is valid
  */
 export function validateExtractedData(data, sectionType) {
-    try {
-        switch (sectionType) {
-            case 'COMPARISON_GRAPH':
-                return Array.isArray(data) && data.every(item =>
-                    typeof item.name === 'string' &&
-                    typeof item.iops === 'number' &&
-                    typeof item.throughput === 'number'
-                );
+  if (!data) return false;
 
-            case 'FEATURE_GRID':
-                return Array.isArray(data) && data.every(item =>
-                    typeof item.icon === 'string' &&
-                    typeof item.title === 'string' &&
-                    typeof item.description === 'string'
-                );
+  if (sectionType === 'CUSTOM_HTML') {
+    // Basic validation: should be an object
+    return typeof data === 'object' && !Array.isArray(data);
+  }
 
-            case 'HERO':
-                return typeof data === 'object' &&
-                    typeof data.badge === 'string' &&
-                    typeof data.title === 'object' &&
-                    typeof data.title.line1 === 'string' &&
-                    typeof data.title.highlight === 'string' &&
-                    typeof data.subtitle === 'string';
+  try {
+    switch (sectionType) {
+      case 'COMPARISON_GRAPH':
+        return Array.isArray(data) && data.every(item =>
+          typeof item.name === 'string' &&
+          typeof item.iops === 'number' &&
+          typeof item.throughput === 'number'
+        );
 
-            default:
-                return false;
-        }
-    } catch {
+      case 'FEATURE_GRID':
+        return Array.isArray(data) && data.every(item =>
+          typeof item.icon === 'string' &&
+          typeof item.title === 'string' &&
+          typeof item.description === 'string'
+        );
+
+      case 'HERO':
+        return typeof data === 'object' &&
+          typeof data.badge === 'string' &&
+          typeof data.title === 'object' &&
+          typeof data.title.line1 === 'string' &&
+          typeof data.title.highlight === 'string' &&
+          typeof data.subtitle === 'string';
+
+      default:
         return false;
     }
+  } catch {
+    return false;
+  }
 }

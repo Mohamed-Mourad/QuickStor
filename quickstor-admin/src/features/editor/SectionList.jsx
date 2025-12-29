@@ -30,7 +30,12 @@ const SectionList = () => {
   };
 
   const handleAddCustomSection = (customSection) => {
-    addSection('CUSTOM_HTML', { html: customSection.html, name: customSection.name });
+    addSection('CUSTOM_HTML', {
+      html: customSection.html,
+      name: customSection.name,
+      schema: customSection.schema || [],
+      content: customSection.defaultContent || {}
+    });
     setIsAddMenuOpen(false);
   };
 
