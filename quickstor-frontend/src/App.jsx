@@ -17,10 +17,17 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log("App mounted. Connecting to Firestore...");
+    console.log("Project ID:", import.meta.env.VITE_FIREBASE_PROJECT_ID);
+
     // Listen for real-time updates from Firestore
     const unsub = onSnapshot(doc(db, 'sites', 'quickstor-live'), (doc) => {
+      console.log("Firestore update received. Exists:", doc.exists());
+
       if (doc.exists()) {
         const data = doc.data();
+        console.log("Data Payload:", data);
+
         // Ensure we have valid data before updating
         if (data.pages && data.navbar && data.footer) {
           // Find the home page sections for the default view (MVP limited to home for now, or use Router later)
@@ -32,6 +39,8 @@ export default function App() {
             sections: homePage?.sections || []
           });
         }
+      } else {
+        console.warn("Document 'sites/quickstor-live' does not exist yet.");
       }
       setLoading(false);
     }, (error) => {
