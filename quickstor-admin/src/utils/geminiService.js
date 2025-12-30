@@ -17,6 +17,70 @@ const INITIAL_DELAY_MS = 2000;
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
+ * Call Gemini API with a prompt and get a text response
+ * Non-streaming fallback
+ */
+export async function callGeminiAPI(prompt) {
+    if (!GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please set VITE_GEMINI_API_KEY in your .env file.');
+    }
+
+    let lastError;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+            const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{ text: prompt }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.2,
+                        topK: 40,
+                        topP: 0.95,
+                        maxOutputTokens: 4096,
+                    }
+                })
+            });
+
+            if (response.status === 429 || response.status === 503) {
+                const delay = INITIAL_DELAY_MS * Math.pow(2, attempt);
+                console.log(`Rate limited. Retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+                await sleep(delay);
+                continue;
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `Gemini API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!text) {
+                throw new Error('No response generated from Gemini API');
+            }
+
+            return text;
+        } catch (error) {
+            lastError = error;
+            if (attempt < MAX_RETRIES - 1 && error.message?.includes('429')) {
+                const delay = INITIAL_DELAY_MS * Math.pow(2, attempt);
+                await sleep(delay);
+                continue;
+            }
+        }
+    }
+
+    throw lastError || new Error('Failed after multiple retries');
+}
+
+/**
  * Call Gemini API with a prompt and stream the response
  * @param {string} prompt - The full prompt to send
  * @param {function(string): void} onChunk - Callback for each text chunk
