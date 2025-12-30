@@ -18,21 +18,43 @@ function PageContent({ pages, navbar, footer }) {
   const location = useLocation();
   const currentPath = location.pathname;
 
+  // Normalize path for comparison (remove leading/trailing slashes)
+  const normalizedPath = currentPath.replace(/^\/|\/$/g, '') || '/';
+
+  console.log("Current path:", currentPath, "Normalized:", normalizedPath);
+  console.log("Available pages:", pages.map(p => ({ id: p.id, slug: p.slug })));
+
   // Find the page that matches the current path
   const currentPage = pages.find(p => {
+    const pageSlug = (p.slug || '').replace(/^\/|\/$/g, '') || '/';
+
     // Handle home page
-    if (currentPath === '/' && (p.slug === '/' || p.id === 'home')) return true;
-    // Handle other pages
-    return p.slug === currentPath || `/${p.slug}` === currentPath;
-  }) || pages.find(p => p.id === 'home') || pages[0];
+    if ((normalizedPath === '/' || normalizedPath === '') && (pageSlug === '/' || pageSlug === '' || p.id === 'home')) {
+      return true;
+    }
+
+    // Handle other pages - compare normalized slugs
+    return pageSlug === normalizedPath;
+  });
+
+  console.log("Matched page:", currentPage?.id || "NONE - showing fallback");
+
+  // Fallback to home page if no match
+  const pageToRender = currentPage || pages.find(p => p.id === 'home') || pages[0];
 
   return (
     <div className="bg-[#050505] min-h-screen text-white font-sans selection:bg-blue-600 selection:text-white">
       {/* Fixed Header */}
       <Navbar {...navbar} />
 
-      {/* Dynamic Sections Loop */}
-      <SectionRenderer sections={currentPage?.sections || []} />
+      {/* Dynamic Sections Loop - Show 404 message if no page found and no fallback */}
+      {pageToRender ? (
+        <SectionRenderer sections={pageToRender.sections || []} />
+      ) : (
+        <div className="flex items-center justify-center min-h-[50vh] text-gray-400">
+          <p>Page not found</p>
+        </div>
+      )}
 
       {/* Fixed Footer */}
       <Footer {...footer} />
