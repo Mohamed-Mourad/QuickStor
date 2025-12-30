@@ -9,7 +9,7 @@ import { extractDataWithAI } from '../../utils/geminiService';
 import { getExtractionPrompt, validateExtractedData } from '../../utils/extractionPrompts';
 
 const PropertyPanel = () => {
-  const { sections, selectedSectionId, updateSection } = useContentStore();
+  const { sections, selectedSectionId, updateSection, navbar, updateNavbar, footer, updateFooter, pages } = useContentStore();
   const fileInputRef = useRef(null);
 
   // AI Import State
@@ -18,15 +18,146 @@ const PropertyPanel = () => {
   const [extractionError, setExtractionError] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
+  // Helper to determine what we are editing
+  const isNavbar = selectedSectionId === 'NAVBAR';
+  const isFooter = selectedSectionId === 'FOOTER';
   const selectedSection = sections.find(s => s.id === selectedSectionId);
 
-  if (!selectedSection) {
+  // If nothing selected and not special section, show placeholder
+  if (!selectedSection && !isNavbar && !isFooter) {
     return (
       <div className="w-80 border-l border-gray-200 bg-white p-8 flex flex-col items-center justify-center text-center text-gray-500 h-full">
         <p>Select a section to edit properties</p>
       </div>
     );
   }
+
+  // --- Navbar Editor ---
+  const renderNavbarEditor = () => {
+    const updateLink = (index, field, value) => {
+      const newLinks = [...navbar.links];
+      newLinks[index] = { ...newLinks[index], [field]: value };
+      updateNavbar({ links: newLinks });
+    };
+
+    const addLink = () => {
+      updateNavbar({ links: [...navbar.links, { label: 'New Link', href: '#' }] });
+    };
+
+    const removeLink = (index) => {
+      const newLinks = navbar.links.filter((_, i) => i !== index);
+      updateNavbar({ links: newLinks });
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Label>Logo Text / Path</Label>
+          <Input
+            value={navbar.logo || ''}
+            onChange={(e) => updateNavbar({ logo: e.target.value })}
+            className="text-gray-900 bg-white"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>CTA Button Text</Label>
+          <Input
+            value={navbar.ctaText || ''}
+            onChange={(e) => updateNavbar({ ctaText: e.target.value })}
+            className="text-gray-900 bg-white"
+          />
+        </div>
+
+        <div className="border-t border-gray-200 pt-4">
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Navigation Links</h4>
+          <div className="space-y-4">
+            {navbar.links.map((link, index) => (
+              <div key={index} className="p-3 bg-gray-50 rounded border border-gray-200 relative group">
+                <button
+                  onClick={() => removeLink(index)}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity bg-transparent"
+                >
+                  <Trash2 size={14} />
+                </button>
+
+                <div className="space-y-2">
+                  <div>
+                    <Label className="text-xs">Label</Label>
+                    <Input
+                      value={link.label}
+                      onChange={(e) => updateLink(index, 'label', e.target.value)}
+                      className="h-8 text-sm text-gray-900 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Target Page</Label>
+                    <select
+                      className="flex h-8 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 cursor-pointer text-gray-900"
+                      value={link.href}
+                      onChange={(e) => updateLink(index, 'href', e.target.value)}
+                    >
+                      <optgroup label="Pages">
+                        {pages.map(page => (
+                          <option key={page.id} value={page.slug}>{page.title}</option>
+                        ))}
+                        <option value="/">Home (/)</option>
+                      </optgroup>
+                      <optgroup label="Custom">
+                        <option value="#"># (No Link)</option>
+                        {!pages.some(p => p.slug === link.href) && link.href !== '/' && link.href !== '#' && (
+                          <option value={link.href}>Current: {link.href}</option>
+                        )}
+                      </optgroup>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <Button onClick={addLink} variant="outline" size="sm" className="w-full gap-2 border-dashed text-gray-600 bg-transparent hover:bg-gray-50">
+              <Plus size={14} /> Add Link
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Footer Editor ---
+  const renderFooterEditor = () => {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Label>Brand Name</Label>
+          <Input
+            value={footer.brandName || ''}
+            onChange={(e) => updateFooter({ brandName: e.target.value })}
+            className="text-gray-900 bg-white"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Description</Label>
+          <textarea
+            className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 min-h-[80px]"
+            value={footer.brandDescription || ''}
+            onChange={(e) => updateFooter({ brandDescription: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Copyright Text</Label>
+          <Input
+            value={footer.copyright || ''}
+            onChange={(e) => updateFooter({ copyright: e.target.value })}
+            className="text-gray-900 bg-white"
+          />
+        </div>
+
+        <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded">
+          Column editing is currently disabled in simplified mode.
+          <br />(Coming soon: Drag & Drop Footer Columns)
+        </div>
+      </div>
+    );
+  };
 
   // --- AI-Powered File Processing ---
   const handleFileUpload = async (event) => {
@@ -329,6 +460,10 @@ const PropertyPanel = () => {
   };
 
   const renderFields = () => {
+    // Determine what to render based on selection (Section vs Global)
+    if (isNavbar) return renderNavbarEditor();
+    if (isFooter) return renderFooterEditor();
+
     const { type, content } = selectedSection;
 
     switch (type) {
@@ -520,7 +655,7 @@ const PropertyPanel = () => {
           <h2 className="font-semibold text-sm text-gray-900">Properties</h2>
         </div>
         <p className="text-[10px] text-gray-400 font-mono truncate pl-4">
-          ID: {selectedSection.id}
+          ID: {isNavbar ? 'Global Navbar' : isFooter ? 'Global Footer' : selectedSection.id}
         </p>
       </div>
 
@@ -539,7 +674,7 @@ const PropertyPanel = () => {
 
       <div className="p-4 border-t border-gray-200 bg-gray-50">
         <Button variant="outline" className="w-full text-xs text-gray-500 hover:text-gray-900">
-          Reset Section to Defaults
+          {(isNavbar || isFooter) ? 'Reset Defaults' : 'Reset Section to Defaults'}
         </Button>
       </div>
 
@@ -580,5 +715,6 @@ const PropertyPanel = () => {
     </div>
   );
 };
+
 
 export default PropertyPanel;

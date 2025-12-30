@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useContentStore } from '../../hooks/useContentStore';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { GripVertical, Trash2, Plus, ChevronDown, BarChart2, Grid, Sparkles, Layout } from 'lucide-react';
+import { GripVertical, Trash2, Plus, ChevronDown, BarChart2, Grid, Sparkles, Layout, Check } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { cn } from '../../utils/cn';
 import { getCustomSections } from '../../utils/sectionGeneratorService';
 
 const SectionList = () => {
-  const { sections, selectedSectionId, setSelectedSectionId, reorderSections, deleteSection, addSection } = useContentStore();
+  const {
+    sections, selectedSectionId, setSelectedSectionId, reorderSections, deleteSection, addSection
+  } = useContentStore();
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [customSections, setCustomSections] = useState([]);
+
+  // Page creation state
+  const [isCreatingPage, setIsCreatingPage] = useState(false);
+  const [newPageTitle, setNewPageTitle] = useState('');
 
   // Load custom sections from localStorage
   useEffect(() => {
@@ -39,6 +45,8 @@ const SectionList = () => {
     setIsAddMenuOpen(false);
   };
 
+
+
   const getTypeIcon = (type) => {
     switch (type) {
       case 'COMPARISON_GRAPH': return <BarChart2 size={14} className="text-gray-400" />;
@@ -51,7 +59,38 @@ const SectionList = () => {
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200 w-80 shrink-0 font-sans">
-      <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center z-20">
+
+      {/* --- Page Manager & Global Settings --- */}
+      <div className="p-4 bg-gray-50 border-b border-gray-200 space-y-4">
+        {/* Global Settings */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setSelectedSectionId('NAVBAR')}
+            className={cn(
+              "px-3 py-2 text-xs font-medium rounded border transition-all text-center",
+              selectedSectionId === 'NAVBAR'
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:shadow-sm"
+            )}
+          >
+            Edit Navbar
+          </button>
+          <button
+            onClick={() => setSelectedSectionId('FOOTER')}
+            className={cn(
+              "px-3 py-2 text-xs font-medium rounded border transition-all text-center",
+              selectedSectionId === 'FOOTER'
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:shadow-sm"
+            )}
+          >
+            Edit Footer
+          </button>
+        </div>
+      </div>
+
+      {/* --- Sections Header --- */}
+      <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-white sticky top-0 z-10">
         <h2 className="font-semibold text-sm text-gray-700">Sections</h2>
 
         <div className="relative">
@@ -61,10 +100,10 @@ const SectionList = () => {
             onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
             className="h-8 px-3 gap-2 text-xs bg-white hover:bg-gray-50 text-gray-900 border-gray-300"
           >
-            <Plus size={14} /> Section <ChevronDown size={12} />
+            <Plus size={14} /> Add Section <ChevronDown size={12} />
           </Button>
 
-          {/* Dropdown Menu */}
+          {/* Dropdown Menu (Existing) */}
           {isAddMenuOpen && (
             <>
               <div

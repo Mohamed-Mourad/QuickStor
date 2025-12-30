@@ -21,7 +21,7 @@ const COMPONENT_MAP = {
 };
 
 const LivePreview = () => {
-  const { sections } = useContentStore();
+  const { sections, navbar, footer, setActivePageId } = useContentStore();
 
   return (
     <div className="flex-1 bg-gray-100 flex flex-col h-full overflow-hidden relative">
@@ -38,7 +38,10 @@ const LivePreview = () => {
         <div className="absolute inset-0 overflow-y-auto bg-black">
           <div className="min-h-full text-white isolate">
             {/* Navbar will now be fixed relative to the preview window */}
-            <Navbar {...defaultContent.navbar} />
+            <Navbar
+              {...navbar}
+              onLogoClick={() => setActivePageId('home')}
+            />
 
             <div className="flex flex-col">
               {sections.map((section) => {
@@ -50,7 +53,7 @@ const LivePreview = () => {
               })}
             </div>
 
-            <Footer {...defaultContent.footer} />
+            <Footer {...footer} />
           </div>
         </div>
       </div>

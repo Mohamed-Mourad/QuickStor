@@ -2,46 +2,42 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, LogOut, Settings, Menu, X, ChevronDown, ChevronRight, Plus, FileText, Library } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { useContentStore } from '../../hooks/useContentStore';
 
 const AdminLayout = () => {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
-  // State for managing pages (Mock data for now)
-  const [pages, setPages] = useState([
-    { id: 'home', title: 'Home Page', path: '/' },
-    // You can add more mock pages here to test the list:
-    // { id: 'pricing', title: 'Pricing', path: '/pricing' }
-  ]);
-  
+
+  const { pages, activePageId, setActivePageId, addPage } = useContentStore();
+
   const [isPagesOpen, setIsPagesOpen] = useState(true); // Default open to show pages
 
   const handleAddPage = (e) => {
     e.preventDefault();
     const newPageTitle = prompt("Enter new page title:");
     if (newPageTitle) {
-      const slug = newPageTitle.toLowerCase().replace(/ /g, '-');
-      setPages([...pages, { id: slug, title: newPageTitle, path: `/${slug}` }]);
+      const slug = newPageTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      addPage(newPageTitle, slug);
     }
   };
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden font-sans">
-      
+
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 w-full h-16 bg-black border-b border-gray-800 z-40 flex items-center justify-between px-4 shadow-md">
-         <span className="text-lg font-bold tracking-wider text-blue-500">QUICKSTOR</span>
-         <button 
-           onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-           className="text-gray-400 hover:text-white p-1"
-         >
-            {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-         </button>
+        <span className="text-lg font-bold tracking-wider text-blue-500">QUICKSTOR</span>
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="text-gray-400 hover:text-white p-1"
+        >
+          {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
       </div>
 
       {/* Overlay */}
       {isSidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm"
           onClick={() => setIsSidebarOpen(false)}
         />
@@ -57,17 +53,17 @@ const AdminLayout = () => {
           <h1 className="text-xl font-bold tracking-wider text-blue-500">QUICKSTOR</h1>
           <p className="text-xs text-gray-500 mt-1">Admin Console</p>
         </div>
-        
+
         {/* Mobile Sidebar Header */}
         <div className="md:hidden h-16 flex items-center px-6 border-b border-gray-800 bg-black/50">
-           <span className="text-sm font-medium text-gray-400">Menu</span>
+          <span className="text-sm font-medium text-gray-400">Menu</span>
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          
+
           {/* Page Builder Group */}
           <div>
-            <button 
+            <button
               onClick={() => setIsPagesOpen(!isPagesOpen)}
               className="flex items-center justify-between w-full px-4 py-3 rounded-md text-sm text-gray-400 hover:text-white hover:bg-gray-900 transition-colors group"
             >
@@ -82,31 +78,31 @@ const AdminLayout = () => {
             {isPagesOpen && (
               <div className="mt-1 ml-4 pl-4 border-l border-gray-800 space-y-1">
                 {pages.map((page) => {
-                  const isActive = location.pathname === page.path;
+                  const isActive = activePageId === page.id;
                   return (
-                    <Link
+                    <button
                       key={page.id}
-                      to={page.path}
-                      onClick={() => setIsSidebarOpen(false)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs transition-all group border ${
-                        isActive 
-                          ? 'bg-blue-600/10 border-blue-600/20 text-white hover:text-white shadow-sm' 
-                          : 'border-transparent text-gray-400 hover:bg-gray-900 hover:border-gray-800 hover:text-white'
-                      }`}
+                      onClick={() => {
+                        setActivePageId(page.id);
+                        setIsSidebarOpen(false);
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2 w-full text-left rounded-md text-xs transition-all group border ${isActive
+                        ? 'bg-blue-600/10 border-blue-600/20 text-white hover:text-white shadow-sm'
+                        : 'border-transparent text-gray-400 hover:bg-gray-900 hover:border-gray-800 hover:text-white'
+                        }`}
                     >
-                      <FileText 
-                        size={14} 
-                        className={`transition-colors ${
-                          isActive 
-                            ? "text-blue-400" 
-                            : "text-gray-600 group-hover:text-gray-300"
-                        }`} 
+                      <FileText
+                        size={14}
+                        className={`transition-colors ${isActive
+                          ? "text-blue-400"
+                          : "text-gray-600 group-hover:text-gray-300"
+                          }`}
                       />
                       {page.title}
-                    </Link>
+                    </button>
                   );
                 })}
-                
+
                 <button
                   onClick={handleAddPage}
                   className="flex items-center gap-2 px-4 py-2 w-full text-left rounded-md text-xs text-white border border-transparent hover:border-blue-500/50 hover:bg-blue-900/10 transition-all mt-2"
@@ -118,28 +114,26 @@ const AdminLayout = () => {
           </div>
 
           {/* Section Library Link */}
-          <Link 
+          <Link
             to="/sections"
             onClick={() => setIsSidebarOpen(false)}
-            className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm transition-colors ${
-              location.pathname.startsWith('/sections')
-                ? 'bg-blue-600 text-white' 
-                : 'text-gray-400 hover:text-white hover:bg-gray-900'
-            }`}
+            className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm transition-colors ${location.pathname.startsWith('/sections')
+              ? 'bg-blue-600 text-white'
+              : 'text-gray-400 hover:text-white hover:bg-gray-900'
+              }`}
           >
             <Library size={18} />
             Section Library
           </Link>
 
           {/* Settings Link */}
-          <Link 
+          <Link
             to="/settings"
             onClick={() => setIsSidebarOpen(false)}
-            className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm transition-colors ${
-              location.pathname === '/settings'
-                ? 'bg-blue-600 text-white' 
-                : 'text-gray-400 hover:text-white hover:bg-gray-900'
-            }`}
+            className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm transition-colors ${location.pathname === '/settings'
+              ? 'bg-blue-600 text-white'
+              : 'text-gray-400 hover:text-white hover:bg-gray-900'
+              }`}
           >
             <Settings size={18} />
             Settings

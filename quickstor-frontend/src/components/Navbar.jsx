@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 
-const Navbar = ({ logo, links, ctaText }) => {
+const Navbar = ({ logo, links, ctaText, onLogoClick }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const navLinks = links || [];
@@ -9,24 +9,33 @@ const Navbar = ({ logo, links, ctaText }) => {
   return (
     <nav className="fixed w-full z-50 border-b border-gray-900 bg-black/95 backdrop-blur-md">
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-12 h-16 md:h-20 flex items-center justify-between">
-        
+
         {/* Logo Area */}
-        <div className="flex-shrink-0 flex items-center gap-3 group cursor-pointer">
+        <a
+          href="/"
+          onClick={(e) => {
+            if (onLogoClick) {
+              e.preventDefault();
+              onLogoClick();
+            }
+          }}
+          className="flex-shrink-0 flex items-center gap-3 group cursor-pointer"
+        >
           {logo && (
-            <img 
-              src={logo} 
-              alt="QuickStor Systems" 
+            <img
+              src={logo}
+              alt="QuickStor Systems"
               className="h-8 md:h-10 w-auto object-contain rounded-sm"
             />
           )}
-        </div>
+        </a>
 
         {/* Desktop Nav */}
         <div className="hidden md:flex gap-6 lg:gap-10 text-xs lg:text-sm font-medium text-gray-400">
           {navLinks.map((item) => (
-            <a 
-              key={item.label} 
-              href={item.href} 
+            <a
+              key={item.label}
+              href={item.href}
               className="hover:text-blue-400 transition-colors relative group py-2"
             >
               {item.label}
@@ -43,8 +52,8 @@ const Navbar = ({ logo, links, ctaText }) => {
         </div>
 
         {/* Mobile Menu Toggle */}
-        <button 
-          className="md:hidden p-2 text-gray-300 hover:text-white transition-colors" 
+        <button
+          className="md:hidden p-2 text-gray-300 hover:text-white transition-colors"
           onClick={() => setIsOpen(!isOpen)}
           aria-label="Toggle menu"
         >
@@ -56,9 +65,9 @@ const Navbar = ({ logo, links, ctaText }) => {
       <div className={`md:hidden absolute w-full bg-black border-b border-gray-800 transition-all duration-300 ease-in-out overflow-hidden ${isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="p-4 space-y-4 flex flex-col items-center">
           {navLinks.map((item) => (
-            <a 
-              key={item.label} 
-              href={item.href} 
+            <a
+              key={item.label}
+              href={item.href}
               className="block w-full text-center py-2 text-gray-400 hover:text-blue-400 font-bold hover:bg-gray-900 rounded transition-colors"
               onClick={() => setIsOpen(false)}
             >

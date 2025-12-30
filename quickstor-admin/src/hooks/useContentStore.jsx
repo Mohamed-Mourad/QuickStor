@@ -1,23 +1,150 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { defaultContent } from '../../../quickstor-frontend/src/data/defaultContent';
 
+import { db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
+
 const ContentContext = createContext();
 
 export const ContentProvider = ({ children }) => {
-  const [sections, setSections] = useState(defaultContent.sections || []);
+  // Global State - Initialize from LocalStorage or Default
+  const [navbar, setNavbar] = useState(() => {
+    const saved = localStorage.getItem('quickstor_navbar');
+    return saved ? JSON.parse(saved) : (defaultContent.navbar || {});
+  });
+
+  const [footer, setFooter] = useState(() => {
+    const saved = localStorage.getItem('quickstor_footer');
+    return saved ? JSON.parse(saved) : (defaultContent.footer || {});
+  });
+
+  // Page State - Initialize from LocalStorage or Default
+  const [pages, setPages] = useState(() => {
+    const saved = localStorage.getItem('quickstor_pages');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'home',
+        slug: '/',
+        title: 'Home',
+        sections: defaultContent.sections || []
+      }
+    ];
+  });
+
+  const [activePageId, setActivePageId] = useState('home');
   const [selectedSectionId, setSelectedSectionId] = useState(null);
 
-  const updateSection = useCallback((id, newContent) => {
-    setSections((prev) =>
-      prev.map((section) =>
-        section.id === id ? { ...section, content: newContent } : section
-      )
-    );
+  // Helper to get active page
+  const activePage = pages.find(p => p.id === activePageId) || pages[0];
+  const sections = activePage?.sections || [];
+
+  // --- Persistence Actions ---
+  const saveContent = useCallback(async () => {
+    // 1. Save locally as backup
+    localStorage.setItem('quickstor_navbar', JSON.stringify(navbar));
+    localStorage.setItem('quickstor_footer', JSON.stringify(footer));
+    localStorage.setItem('quickstor_pages', JSON.stringify(pages));
+
+    // 2. Publish to Firestore
+    try {
+      const liveContentRef = doc(db, 'sites', 'quickstor-live');
+      await setDoc(liveContentRef, {
+        navbar,
+        footer,
+        pages,
+        lastUpdated: new Date()
+      });
+      console.log('Content published to Firestore');
+      return true;
+    } catch (error) {
+      console.error('Error publishing to Firestore:', error);
+      alert('Failed to publish: ' + error.message);
+      return false;
+    }
+  }, [navbar, footer, pages]);
+
+  const discardChanges = useCallback(() => {
+    if (!confirm('Are you sure you want to discard all unsaved changes? This will revert to the last valid save.')) return;
+
+    const savedNavbar = localStorage.getItem('quickstor_navbar');
+    setNavbar(savedNavbar ? JSON.parse(savedNavbar) : (defaultContent.navbar || {}));
+
+    const savedFooter = localStorage.getItem('quickstor_footer');
+    setFooter(savedFooter ? JSON.parse(savedFooter) : (defaultContent.footer || {}));
+
+    const savedPages = localStorage.getItem('quickstor_pages');
+    if (savedPages) {
+      setPages(JSON.parse(savedPages));
+    } else {
+      setPages([{
+        id: 'home',
+        slug: '/',
+        title: 'Home',
+        sections: defaultContent.sections || []
+      }]);
+    }
+    setActivePageId('home');
   }, []);
 
-  const reorderSections = useCallback((newOrder) => {
-    setSections(newOrder);
+  // --- Page Actions ---
+
+  const addPage = useCallback((title, slug) => {
+    const newPage = {
+      id: `page-${Date.now()}`,
+      title,
+      slug: slug.startsWith('/') ? slug : `/${slug}`,
+      sections: []
+    };
+    setPages(prev => [...prev, newPage]);
+    setActivePageId(newPage.id);
+    setSelectedSectionId(null);
   }, []);
+
+  const deletePage = useCallback((id) => {
+    if (id === 'home') return; // Cannot delete home
+    setPages(prev => {
+      const newPages = prev.filter(p => p.id !== id);
+      return newPages;
+    });
+    if (activePageId === id) setActivePageId('home');
+  }, [activePageId]);
+
+  const updatePage = useCallback((id, updates) => {
+    setPages(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  }, []);
+
+  // --- Global Actions (Navbar/Footer) ---
+
+  const updateNavbar = useCallback((newConfig) => {
+    setNavbar(prev => ({ ...prev, ...newConfig }));
+  }, []);
+
+  const updateFooter = useCallback((newConfig) => {
+    setFooter(prev => ({ ...prev, ...newConfig }));
+  }, []);
+
+
+  // --- Section Actions (Scoped to Active Page) ---
+
+  const updateSection = useCallback((id, newContent) => {
+    setPages(prev => prev.map(page => {
+      if (page.id !== activePageId) return page;
+      return {
+        ...page,
+        sections: page.sections.map(section =>
+          section.id === id ? { ...section, content: newContent } : section
+        )
+      };
+    }));
+  }, [activePageId]);
+
+  const reorderSections = useCallback((newOrder) => {
+    setPages(prev => prev.map(page => {
+      if (page.id !== activePageId) return page;
+      return { ...page, sections: newOrder };
+    }));
+  }, [activePageId]);
 
   // ACTION: Add a new section with SAFE DEFAULTS
   const addSection = useCallback((type, customProps = null) => {
@@ -65,24 +192,50 @@ export const ContentProvider = ({ children }) => {
       content: customProps || defaultProps
     };
 
-    setSections((prev) => [...prev, newSection]);
+    setPages(prev => prev.map(page => {
+      if (page.id !== activePageId) return page;
+      return { ...page, sections: [...page.sections, newSection] };
+    }));
+
     setSelectedSectionId(newId);
-  }, []);
+  }, [activePageId]);
 
   const deleteSection = useCallback((id) => {
-    setSections((prev) => prev.filter((s) => s.id !== id));
+    setPages(prev => prev.map(page => {
+      if (page.id !== activePageId) return page;
+      return { ...page, sections: page.sections.filter(s => s.id !== id) };
+    }));
     if (selectedSectionId === id) setSelectedSectionId(null);
-  }, [selectedSectionId]);
+  }, [activePageId, selectedSectionId]);
 
   return (
     <ContentContext.Provider value={{
+      // Page State
+      pages,
+      activePageId,
+      activePage,
+      setActivePageId,
+      addPage,
+      deletePage,
+      updatePage,
+
+      // Global State
+      navbar,
+      footer,
+      updateNavbar,
+      updateFooter,
+
+      // Section State (Derived from Active Page)
       sections,
       selectedSectionId,
       setSelectedSectionId,
       updateSection,
       reorderSections,
       addSection,
-      deleteSection
+      deleteSection,
+      // Persistence
+      saveContent,
+      discardChanges
     }}>
       {children}
     </ContentContext.Provider>
