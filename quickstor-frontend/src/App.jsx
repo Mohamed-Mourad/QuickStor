@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { db } from './firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 
@@ -12,31 +13,58 @@ import { SectionRenderer } from './components/SectionRenderer';
 // Import Data
 import { defaultContent } from './data/defaultContent';
 
+// Page Component - Renders dynamic sections based on current route
+function PageContent({ pages, navbar, footer }) {
+  const location = useLocation();
+  const currentPath = location.pathname;
+
+  // Find the page that matches the current path
+  const currentPage = pages.find(p => {
+    // Handle home page
+    if (currentPath === '/' && (p.slug === '/' || p.id === 'home')) return true;
+    // Handle other pages
+    return p.slug === currentPath || `/${p.slug}` === currentPath;
+  }) || pages.find(p => p.id === 'home') || pages[0];
+
+  return (
+    <div className="bg-[#050505] min-h-screen text-white font-sans selection:bg-blue-600 selection:text-white">
+      {/* Fixed Header */}
+      <Navbar {...navbar} />
+
+      {/* Dynamic Sections Loop */}
+      <SectionRenderer sections={currentPage?.sections || []} />
+
+      {/* Fixed Footer */}
+      <Footer {...footer} />
+    </div>
+  );
+}
+
 export default function App() {
-  const [content, setContent] = useState(defaultContent);
+  const [siteData, setSiteData] = useState({
+    pages: defaultContent.sections ? [{ id: 'home', slug: '/', sections: defaultContent.sections }] : [],
+    navbar: defaultContent.navbar || {},
+    footer: defaultContent.footer || {}
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     console.log("App mounted. Connecting to Firestore...");
-    console.log("Project ID:", import.meta.env.VITE_FIREBASE_PROJECT_ID);
 
     // Listen for real-time updates from Firestore
-    const unsub = onSnapshot(doc(db, 'sites', 'quickstor-live'), (doc) => {
-      console.log("Firestore update received. Exists:", doc.exists());
+    const unsub = onSnapshot(doc(db, 'sites', 'quickstor-live'), (docSnap) => {
+      console.log("Firestore update received. Exists:", docSnap.exists());
 
-      if (doc.exists()) {
-        const data = doc.data();
+      if (docSnap.exists()) {
+        const data = docSnap.data();
         console.log("Data Payload:", data);
 
         // Ensure we have valid data before updating
         if (data.pages && data.navbar && data.footer) {
-          // Find the home page sections for the default view (MVP limited to home for now, or use Router later)
-          const homePage = data.pages.find(p => p.id === 'home') || data.pages[0];
-
-          setContent({
+          setSiteData({
+            pages: data.pages,
             navbar: data.navbar,
-            footer: data.footer,
-            sections: homePage?.sections || []
+            footer: data.footer
           });
         }
       } else {
@@ -51,16 +79,25 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  if (loading) {
+    return (
+      <div className="bg-[#050505] min-h-screen flex items-center justify-center">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-[#050505] min-h-screen text-white font-sans selection:bg-blue-600 selection:text-white">
-      {/* Fixed Header */}
-      <Navbar {...content.navbar} />
-
-      {/* Dynamic Sections Loop */}
-      <SectionRenderer sections={content.sections} />
-
-      {/* Fixed Footer */}
-      <Footer {...content.footer} />
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="*" element={
+          <PageContent
+            pages={siteData.pages}
+            navbar={siteData.navbar}
+            footer={siteData.footer}
+          />
+        } />
+      </Routes>
+    </BrowserRouter>
   );
 }

@@ -1,0 +1,6 @@
+/* 
+  Render Static Site Rewrite Rules
+  This file tells Render to serve index.html for all routes, 
+  enabling client-side SPA routing.
+*/
+/*    /index.html   200
