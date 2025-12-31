@@ -14,9 +14,6 @@ const SectionLibrary = () => {
   // Get custom sections from content store (synced with Firebase)
   const { customSections, setCustomSections } = useContentStore();
 
-  console.log('[SectionLibrary] customSections from store:', customSections);
-  console.log('[SectionLibrary] count:', customSections?.length || 0);
-
   // Helper to find default props for a section type
   const getDefaultProps = (type) => {
     const example = defaultContent.sections.find(s => s.type === type);

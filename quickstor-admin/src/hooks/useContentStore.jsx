@@ -53,15 +53,10 @@ export const ContentProvider = ({ children }) => {
   // Load ALL content from Firestore on startup (sync across browsers)
   useEffect(() => {
     const loadFromFirestore = async () => {
-      console.log('[SYNC] Starting Firestore load...');
       try {
         const docSnap = await getDoc(doc(db, 'sites', 'quickstor-live'));
-        console.log('[SYNC] Firestore doc exists:', docSnap.exists());
-
         if (docSnap.exists()) {
           const data = docSnap.data();
-          console.log('[SYNC] Firestore customSections:', data.customSections);
-          console.log('[SYNC] Firestore customSections count:', data.customSections?.length || 0);
 
           // Sync pages from Firestore
           if (data.pages && Array.isArray(data.pages)) {
@@ -98,7 +93,6 @@ export const ContentProvider = ({ children }) => {
           const firestoreSections = data.customSections && Array.isArray(data.customSections)
             ? data.customSections
             : [];
-          console.log('[SYNC] Setting customSections to:', firestoreSections.length, 'sections');
           setCustomSections(firestoreSections);
           localStorage.setItem('quickstor_custom_sections', JSON.stringify(firestoreSections));
         }
