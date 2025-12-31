@@ -13,6 +13,9 @@ import { SectionRenderer } from './components/SectionRenderer';
 // Import Data
 import { defaultContent } from './data/defaultContent';
 
+// Import Theme Utils
+import { defaultTheme, applyThemeToDocument } from './utils/themeUtils';
+
 // Page Component - Renders dynamic sections based on current route
 function PageContent({ pages, navbar, footer }) {
   const location = useLocation();
@@ -66,9 +69,15 @@ export default function App() {
   const [siteData, setSiteData] = useState({
     pages: defaultContent.sections ? [{ id: 'home', slug: '/', sections: defaultContent.sections }] : [],
     navbar: defaultContent.navbar || {},
-    footer: defaultContent.footer || {}
+    footer: defaultContent.footer || {},
+    theme: defaultTheme
   });
   const [loading, setLoading] = useState(true);
+
+  // Apply theme whenever it changes
+  useEffect(() => {
+    applyThemeToDocument(siteData.theme);
+  }, [siteData.theme]);
 
   useEffect(() => {
     console.log("App mounted. Connecting to Firestore...");
@@ -86,7 +95,8 @@ export default function App() {
           setSiteData({
             pages: data.pages,
             navbar: data.navbar,
-            footer: data.footer
+            footer: data.footer,
+            theme: data.theme || defaultTheme
           });
         }
       } else {

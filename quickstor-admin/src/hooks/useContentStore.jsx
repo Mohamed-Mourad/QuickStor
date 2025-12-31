@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { defaultContent } from '../../../quickstor-frontend/src/data/defaultContent';
+import { defaultTheme } from '../config/defaultTheme';
 
 import { db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const ContentContext = createContext();
 
@@ -35,6 +36,80 @@ export const ContentProvider = ({ children }) => {
   const [activePageId, setActivePageId] = useState('home');
   const [selectedSectionId, setSelectedSectionId] = useState(null);
 
+  // Theme State - Initialize from LocalStorage or Default
+  const [activeTheme, setActiveTheme] = useState(() => {
+    const saved = localStorage.getItem('quickstor_activeTheme');
+    return saved ? JSON.parse(saved) : defaultTheme;
+  });
+
+  const [savedThemes, setSavedThemes] = useState(() => {
+    const saved = localStorage.getItem('quickstor_savedThemes');
+    return saved ? JSON.parse(saved) : [defaultTheme];
+  });
+
+  // Custom Sections Library - Start empty, Firestore is source of truth
+  const [customSections, setCustomSections] = useState([]);
+
+  // Load ALL content from Firestore on startup (sync across browsers)
+  useEffect(() => {
+    const loadFromFirestore = async () => {
+      console.log('[SYNC] Starting Firestore load...');
+      try {
+        const docSnap = await getDoc(doc(db, 'sites', 'quickstor-live'));
+        console.log('[SYNC] Firestore doc exists:', docSnap.exists());
+
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          console.log('[SYNC] Firestore customSections:', data.customSections);
+          console.log('[SYNC] Firestore customSections count:', data.customSections?.length || 0);
+
+          // Sync pages from Firestore
+          if (data.pages && Array.isArray(data.pages)) {
+            setPages(data.pages);
+            localStorage.setItem('quickstor_pages', JSON.stringify(data.pages));
+          }
+
+          // Sync navbar from Firestore
+          if (data.navbar) {
+            setNavbar(data.navbar);
+            localStorage.setItem('quickstor_navbar', JSON.stringify(data.navbar));
+          }
+
+          // Sync footer from Firestore
+          if (data.footer) {
+            setFooter(data.footer);
+            localStorage.setItem('quickstor_footer', JSON.stringify(data.footer));
+          }
+
+          // Sync savedThemes from Firestore
+          if (data.savedThemes && Array.isArray(data.savedThemes)) {
+            setSavedThemes(data.savedThemes);
+            localStorage.setItem('quickstor_savedThemes', JSON.stringify(data.savedThemes));
+          }
+
+          // Sync active theme
+          if (data.theme) {
+            setActiveTheme(data.theme);
+            localStorage.setItem('quickstor_activeTheme', JSON.stringify(data.theme));
+          }
+
+          // Sync custom sections library (Firestore is source of truth)
+          // Default to empty array if not present in Firestore
+          const firestoreSections = data.customSections && Array.isArray(data.customSections)
+            ? data.customSections
+            : [];
+          console.log('[SYNC] Setting customSections to:', firestoreSections.length, 'sections');
+          setCustomSections(firestoreSections);
+          localStorage.setItem('quickstor_custom_sections', JSON.stringify(firestoreSections));
+        }
+      } catch (error) {
+        console.error('Error loading from Firestore:', error);
+      }
+    };
+
+    loadFromFirestore();
+  }, []);
+
   // Helper to get active page
   const activePage = pages.find(p => p.id === activePageId) || pages[0];
   const sections = activePage?.sections || [];
@@ -45,14 +120,20 @@ export const ContentProvider = ({ children }) => {
     localStorage.setItem('quickstor_navbar', JSON.stringify(navbar));
     localStorage.setItem('quickstor_footer', JSON.stringify(footer));
     localStorage.setItem('quickstor_pages', JSON.stringify(pages));
+    localStorage.setItem('quickstor_activeTheme', JSON.stringify(activeTheme));
+    localStorage.setItem('quickstor_savedThemes', JSON.stringify(savedThemes));
+    localStorage.setItem('quickstor_custom_sections', JSON.stringify(customSections));
 
-    // 2. Publish to Firestore
+    // 2. Publish to Firestore (includes all data for cross-browser sync)
     try {
       const liveContentRef = doc(db, 'sites', 'quickstor-live');
       await setDoc(liveContentRef, {
         navbar,
         footer,
         pages,
+        theme: activeTheme,
+        savedThemes: savedThemes,
+        customSections: customSections,
         lastUpdated: new Date()
       });
       console.log('Content published to Firestore');
@@ -62,7 +143,7 @@ export const ContentProvider = ({ children }) => {
       alert('Failed to publish: ' + error.message);
       return false;
     }
-  }, [navbar, footer, pages]);
+  }, [navbar, footer, pages, activeTheme, savedThemes, customSections]);
 
   const discardChanges = useCallback(() => {
     if (!confirm('Are you sure you want to discard all unsaved changes? This will revert to the last valid save.')) return;
@@ -124,8 +205,49 @@ export const ContentProvider = ({ children }) => {
     setFooter(prev => ({ ...prev, ...newConfig }));
   }, []);
 
+  // --- Theme Actions ---
 
-  // --- Section Actions (Scoped to Active Page) ---
+  const updateTheme = useCallback((updates) => {
+    setActiveTheme(prev => ({
+      ...prev,
+      ...updates,
+      colors: { ...prev.colors, ...(updates.colors || {}) },
+      fonts: { ...prev.fonts, ...(updates.fonts || {}) },
+      hero: { ...prev.hero, ...(updates.hero || {}) }
+    }));
+  }, []);
+
+  const saveThemeToLibrary = useCallback((name) => {
+    const newTheme = {
+      ...activeTheme,
+      id: `theme-${Date.now()}`,
+      name: name || `Theme ${savedThemes.length + 1}`
+    };
+    const updatedThemes = [...savedThemes, newTheme];
+    setSavedThemes(updatedThemes);
+    // Persist immediately
+    localStorage.setItem('quickstor_savedThemes', JSON.stringify(updatedThemes));
+    return newTheme;
+  }, [activeTheme, savedThemes]);
+
+  const deleteThemeFromLibrary = useCallback((themeId) => {
+    if (themeId === 'default') return; // Cannot delete default theme
+    const updatedThemes = savedThemes.filter(t => t.id !== themeId);
+    setSavedThemes(updatedThemes);
+    // Persist immediately
+    localStorage.setItem('quickstor_savedThemes', JSON.stringify(updatedThemes));
+    // If deleted theme was active, revert to default
+    if (activeTheme.id === themeId) {
+      setActiveTheme(defaultTheme);
+      localStorage.setItem('quickstor_activeTheme', JSON.stringify(defaultTheme));
+    }
+  }, [activeTheme.id, savedThemes]);
+
+  const applyTheme = useCallback((theme) => {
+    setActiveTheme(theme);
+    // Persist immediately
+    localStorage.setItem('quickstor_activeTheme', JSON.stringify(theme));
+  }, []);
 
   const updateSection = useCallback((id, newContent) => {
     setPages(prev => prev.map(page => {
@@ -233,6 +355,19 @@ export const ContentProvider = ({ children }) => {
       reorderSections,
       addSection,
       deleteSection,
+
+      // Theme State
+      activeTheme,
+      savedThemes,
+      updateTheme,
+      saveThemeToLibrary,
+      deleteThemeFromLibrary,
+      applyTheme,
+
+      // Custom Sections Library
+      customSections,
+      setCustomSections,
+
       // Persistence
       saveContent,
       discardChanges

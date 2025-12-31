@@ -1,29 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Edit, Trash2, Eye, Box, Sparkles } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import Modal from '../components/ui/Modal';
 import { getComponentByType } from '../utils/sectionRegistry';
-import { getCustomSections, deleteFromLibrary } from '../utils/sectionGeneratorService';
+import { useContentStore } from '../hooks/useContentStore';
 import { defaultContent } from '../../../quickstor-frontend/src/data/defaultContent';
 
 const SectionLibrary = () => {
   const [previewSection, setPreviewSection] = useState(null);
-  const [customSections, setCustomSections] = useState([]);
 
-  // Load custom sections from localStorage on mount
-  useEffect(() => {
-    const loadCustomSections = () => {
-      const sections = getCustomSections();
-      setCustomSections(sections);
-    };
-    loadCustomSections();
+  // Get custom sections from content store (synced with Firebase)
+  const { customSections, setCustomSections } = useContentStore();
 
-    // Listen for storage changes (in case another tab updates)
-    window.addEventListener('storage', loadCustomSections);
-    return () => window.removeEventListener('storage', loadCustomSections);
-  }, []);
+  console.log('[SectionLibrary] customSections from store:', customSections);
+  console.log('[SectionLibrary] count:', customSections?.length || 0);
 
   // Helper to find default props for a section type
   const getDefaultProps = (type) => {
@@ -56,8 +48,9 @@ const SectionLibrary = () => {
 
   const handleDeleteCustom = (sectionId) => {
     if (confirm('Are you sure you want to delete this section?')) {
-      deleteFromLibrary(sectionId);
-      setCustomSections(getCustomSections());
+      const updated = customSections.filter(s => s.id !== sectionId);
+      setCustomSections(updated);
+      localStorage.setItem('quickstor_custom_sections', JSON.stringify(updated));
     }
   };
 

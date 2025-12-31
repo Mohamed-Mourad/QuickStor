@@ -6,11 +6,13 @@ import { Label } from '../components/ui/Label';
 import { Input } from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
 import { CodeHighlighter } from '../components/ui/CodeHighlighter';
-import { generateSectionHTML, editSectionWithChat, saveToLibrary } from '../utils/sectionGeneratorService';
+import { generateSectionHTML, editSectionWithChat } from '../utils/sectionGeneratorService';
 import CustomHTMLSection from '../components/CustomHTMLSection';
+import { useContentStore } from '../hooks/useContentStore';
 
 const SectionCreator = () => {
   const navigate = useNavigate();
+  const { customSections, setCustomSections } = useContentStore();
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -129,13 +131,20 @@ const SectionCreator = () => {
 
     try {
       const firstUserMessage = chatHistory.find(m => m.role === 'user');
-      saveToLibrary({
+      const newSection = {
+        id: `custom-${Date.now()}`,
         name: sectionName || 'Custom Section',
         html: generatedCode,
         schema: sectionSchema,
         defaultContent: sectionContent,
-        prompt: firstUserMessage?.content || ''
-      });
+        prompt: firstUserMessage?.content || '',
+        createdAt: new Date().toISOString()
+      };
+
+      // Add to content store (syncs with Firebase)
+      const updated = [...customSections, newSection];
+      setCustomSections(updated);
+      localStorage.setItem('quickstor_custom_sections', JSON.stringify(updated));
 
       setIsPublishing(false);
       setShowPublishModal(false);

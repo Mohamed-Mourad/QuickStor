@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, LogOut, Settings, Menu, X, ChevronDown, ChevronRight, Plus, FileText, Library } from 'lucide-react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, LogOut, Settings, Menu, X, ChevronDown, ChevronRight, Plus, FileText, Library, Palette } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useContentStore } from '../../hooks/useContentStore';
 
 const AdminLayout = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const { pages, activePageId, setActivePageId, addPage } = useContentStore();
@@ -85,6 +86,7 @@ const AdminLayout = () => {
                       onClick={() => {
                         setActivePageId(page.id);
                         setIsSidebarOpen(false);
+                        navigate('/');
                       }}
                       className={`flex items-center gap-2 px-4 py-2 w-full text-left rounded-md text-xs transition-all group border ${isActive
                         ? 'bg-blue-600/10 border-blue-600/20 text-white hover:text-white shadow-sm'
@@ -124,6 +126,19 @@ const AdminLayout = () => {
           >
             <Library size={18} />
             Section Library
+          </Link>
+
+          {/* Theme Editor Link */}
+          <Link
+            to="/themes"
+            onClick={() => setIsSidebarOpen(false)}
+            className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm transition-colors ${location.pathname === '/themes'
+              ? 'bg-blue-600 text-white'
+              : 'text-gray-400 hover:text-white hover:bg-gray-900'
+              }`}
+          >
+            <Palette size={18} />
+            Theme Editor
           </Link>
 
           {/* Settings Link */}

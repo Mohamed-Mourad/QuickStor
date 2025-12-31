@@ -10,6 +10,7 @@ import AuthLayout from './components/layout/AuthLayout';
 import Dashboard from './pages/Dashboard';
 import SectionLibrary from './pages/SectionLibrary';
 import SectionCreator from './pages/SectionCreator';
+import ThemeEditor from './pages/ThemeEditor';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
 
@@ -26,10 +27,11 @@ function App() {
           {/* Protected Routes (Dashboard & Tools) */}
           <Route element={<AdminLayout />}>
             <Route path="/" element={<Dashboard />} />
-            
+
             {/* New Routes */}
             <Route path="/sections" element={<SectionLibrary />} />
             <Route path="/sections/new" element={<SectionCreator />} />
+            <Route path="/themes" element={<ThemeEditor />} />
           </Route>
 
           {/* Catch-all */}
