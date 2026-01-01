@@ -445,3 +445,94 @@ export async function extractDataWithAI(fileContent, sectionOrType, getPrompt) {
         }
     }
 }
+
+/**
+ * Generate content for a specific section based on user prompt
+ */
+export async function generateSectionContent(sectionType, userPrompt, currentContent = {}) {
+    let schemaDescription = '';
+    let exampleJSON = '';
+
+    // Define schemas based on section type
+    switch (sectionType) {
+        case 'HERO':
+            schemaDescription = `
+            - badge: Short text for a badge (e.g., "New Feature")
+            - title: { line1: "Main headline", highlight: "Highlighted word" }
+            - subtitle: Descriptive text (1-2 sentences)
+            - primaryCta: Text for primary button
+            - secondaryCta: Text for secondary button
+            `;
+            exampleJSON = `{
+                "badge": "2.0 Release",
+                "title": { "line1": "Future of", "highlight": "Storage" },
+                "subtitle": "Experience lightning fast data transfer.",
+                "primaryCta": "Get Started",
+                "secondaryCta": "Learn More"
+            }`;
+            break;
+        case 'FEATURE_GRID':
+            schemaDescription = `
+            - features: Array of objects, each with:
+              - icon: Icon name (one of: Star, Shield, Zap, Cloud, Server, Database, Lock, Globe, Smartphone, Laptop)
+              - title: Short feature title
+              - description: Feature description
+            `;
+            exampleJSON = `{
+                "features": [
+                    { "icon": "Zap", "title": "Fast", "description": "Super fast speed." },
+                    { "icon": "Shield", "title": "Secure", "description": "Bank-grade security." }
+                ]
+            }`;
+            break;
+        case 'COMPARISON_GRAPH':
+            schemaDescription = `
+            - title: Graph section title
+            - description: Detailed explanation of the comparison
+            - data: Array of objects with:
+              - name: Product/Competitor name
+              - iops: Number (integer)
+              - throughput: Number (integer)
+            `;
+            exampleJSON = `{
+                "title": "Performance Comparison",
+                "description": "See how we stack up.",
+                "data": [
+                    { "name": "Us", "iops": 50000, "throughput": 1200 },
+                    { "name": "Them", "iops": 10000, "throughput": 500 }
+                ]
+            }`;
+            break;
+        case 'CUSTOM_HTML':
+            schemaDescription = `
+            A JSON object with keys matching the section's content fields.
+            Common fields might include title, subtitle, image_url, etc.
+            `;
+            exampleJSON = `{ "title": "Custom Section", "description": "Generated content" }`;
+            break;
+        default:
+            throw new Error(`Unsupported section type for AI generation: ${sectionType}`);
+    }
+
+    const systemPrompt = `
+    You are a professional UX copywriter and web designer.
+    Generate JSON content for a website section of type: ${sectionType}.
+    
+    The user wants content about: "${userPrompt}"
+    
+    Strictly follow this JSON structure:
+    ${schemaDescription}
+    
+    Return ONLY raw JSON. No markdown formatting. No backticks.
+    Example format:
+    ${exampleJSON}
+    `;
+
+    try {
+        const response = await callGeminiAPI(systemPrompt);
+        return extractJSONFromResponse(response);
+    } catch (error) {
+        console.error('AI Generation Failed:', error);
+        throw new Error('Failed to generate content. Please try a different prompt.');
+    }
+}
