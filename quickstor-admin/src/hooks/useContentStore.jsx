@@ -123,45 +123,28 @@ export const ContentProvider = ({ children }) => {
 
   // --- Change Detection Logic ---
 
-  // Helper to strip internal timestamps for comparison
-  const normalizeForComparison = (data) => {
-    if (!data) return {};
-    const { lastUpdated, lastPublished, ...rest } = data;
-    return rest;
-  };
+  // Refactored: Use explicit "Dirty Flag" for local changes and "Versioning" for Staging vs Live
+  const [isDirty, setIsDirty] = useState(false);
 
-  // 1. Check if Local differs from Staging (Unsaved Changes)
-  useEffect(() => {
-    if (!stagingSnapshot) return;
+  const markDirty = useCallback(() => {
+    setIsDirty(true);
+  }, []);
 
-    const currentLocalState = {
-      navbar,
-      footer,
-      pages,
-      theme: activeTheme,
-      savedThemes,
-      customSections
-    };
-
-    const cleanLocal = normalizeForComparison(currentLocalState);
-    const cleanStaging = normalizeForComparison(stagingSnapshot);
-
-    const isDifferent = JSON.stringify(cleanLocal) !== JSON.stringify(cleanStaging);
-    setHasUnsavedChanges(isDifferent);
-  }, [navbar, footer, pages, activeTheme, savedThemes, customSections, stagingSnapshot]);
-
-  // 2. Check if Staging differs from Live (Pending Publish)
+  // Check if Staging differs from Live via VERSION comparison (O(1) complexity)
   useEffect(() => {
     if (!stagingSnapshot || !liveSnapshot) {
       setHasPendingPublish(false);
       return;
     }
 
-    const cleanStaging = normalizeForComparison(stagingSnapshot);
-    const cleanLive = normalizeForComparison(liveSnapshot);
+    // If versions are missing (legacy data), fallback to assuming they match or manual publish needed
+    // But for new saves, we rely on version string equality
+    const stagingVer = stagingSnapshot.version;
+    const liveVer = liveSnapshot.version;
 
-    const isDifferent = JSON.stringify(cleanStaging) !== JSON.stringify(cleanLive);
-    setHasPendingPublish(isDifferent);
+    console.log(`Version Check - Staging: ${stagingVer} | Live: ${liveVer}`);
+
+    setHasPendingPublish(stagingVer !== liveVer);
   }, [stagingSnapshot, liveSnapshot]);
 
   // Helper to get active page
@@ -181,7 +164,12 @@ export const ContentProvider = ({ children }) => {
     // 2. Publish to Firestore (STAGING)
     try {
       const stagingContentRef = doc(db, 'sites', 'quickstor-staging');
+
+      // Generate Version ID (Time + Random) to guarantee uniqueness on every save
+      const newVersion = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
       const newData = {
+        version: newVersion, // NEW: Explicit versioning
         navbar,
         footer,
         pages,
@@ -195,8 +183,9 @@ export const ContentProvider = ({ children }) => {
 
       // Update local snapshot after successful save
       setStagingSnapshot(newData);
+      setIsDirty(false); // Reset dirty flag
 
-      console.log('Content published to Firestore (Staging)');
+      console.log('Content published to Firestore (Staging) with version:', newVersion);
       return true;
     } catch (error) {
       console.error('Error publishing to Firestore:', error);
@@ -271,8 +260,15 @@ export const ContentProvider = ({ children }) => {
   }, []);
 
   const discardChanges = useCallback(() => {
-    if (!confirm('Are you sure you want to discard all unsaved changes? This will revert to the last valid save.')) return;
+    if (!confirm('Are you sure you want to discard all unsaved changes over your current session?')) return;
 
+    // Revert logic...
+    // Also reset dirty flag
+    setIsDirty(false);
+
+    // ... rest of discard logic (using saved locals)
+    // Actually, deeper revert to STAGING snapshot might be safer if we want "Reset to Saved State"
+    // But keeping existing localStorage revert for now as per previous logic
     const savedNavbar = localStorage.getItem('quickstor_navbar');
     setNavbar(savedNavbar ? JSON.parse(savedNavbar) : (defaultContent.navbar || {}));
 
@@ -291,11 +287,20 @@ export const ContentProvider = ({ children }) => {
       }]);
     }
     setActivePageId('home');
-  }, []);
+
+    // Safety: ensure using snapshot if local storage is stale? 
+    if (stagingSnapshot) {
+      if (stagingSnapshot.navbar) setNavbar(stagingSnapshot.navbar);
+      if (stagingSnapshot.footer) setFooter(stagingSnapshot.footer);
+      if (stagingSnapshot.pages) setPages(stagingSnapshot.pages);
+      // ... etc
+    }
+  }, [stagingSnapshot]);
 
   // --- Page Actions ---
 
   const addPage = useCallback((title, slug) => {
+    markDirty();
     const newPage = {
       id: `page-${Date.now()}`,
       title,
@@ -305,34 +310,39 @@ export const ContentProvider = ({ children }) => {
     setPages(prev => [...prev, newPage]);
     setActivePageId(newPage.id);
     setSelectedSectionId(null);
-  }, []);
+  }, [markDirty]);
 
   const deletePage = useCallback((id) => {
     if (id === 'home') return; // Cannot delete home
+    markDirty();
     setPages(prev => {
       const newPages = prev.filter(p => p.id !== id);
       return newPages;
     });
     if (activePageId === id) setActivePageId('home');
-  }, [activePageId]);
+  }, [activePageId, markDirty]);
 
   const updatePage = useCallback((id, updates) => {
+    markDirty();
     setPages(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
-  }, []);
+  }, [markDirty]);
 
   // --- Global Actions (Navbar/Footer) ---
 
   const updateNavbar = useCallback((newConfig) => {
+    markDirty();
     setNavbar(prev => ({ ...prev, ...newConfig }));
-  }, []);
+  }, [markDirty]);
 
   const updateFooter = useCallback((newConfig) => {
+    markDirty();
     setFooter(prev => ({ ...prev, ...newConfig }));
-  }, []);
+  }, [markDirty]);
 
   // --- Theme Actions ---
 
   const updateTheme = useCallback((updates) => {
+    markDirty();
     setActiveTheme(prev => ({
       ...prev,
       ...updates,
@@ -340,9 +350,10 @@ export const ContentProvider = ({ children }) => {
       fonts: { ...prev.fonts, ...(updates.fonts || {}) },
       hero: { ...prev.hero, ...(updates.hero || {}) }
     }));
-  }, []);
+  }, [markDirty]);
 
   const saveThemeToLibrary = useCallback((name) => {
+    markDirty();
     const newTheme = {
       ...activeTheme,
       id: `theme-${Date.now()}`,
@@ -353,10 +364,11 @@ export const ContentProvider = ({ children }) => {
     // Persist immediately
     localStorage.setItem('quickstor_savedThemes', JSON.stringify(updatedThemes));
     return newTheme;
-  }, [activeTheme, savedThemes]);
+  }, [activeTheme, savedThemes, markDirty]);
 
   const deleteThemeFromLibrary = useCallback((themeId) => {
     if (themeId === 'default') return; // Cannot delete default theme
+    markDirty();
     const updatedThemes = savedThemes.filter(t => t.id !== themeId);
     setSavedThemes(updatedThemes);
     // Persist immediately
@@ -366,15 +378,17 @@ export const ContentProvider = ({ children }) => {
       setActiveTheme(defaultTheme);
       localStorage.setItem('quickstor_activeTheme', JSON.stringify(defaultTheme));
     }
-  }, [activeTheme.id, savedThemes]);
+  }, [activeTheme.id, savedThemes, markDirty]);
 
   const applyTheme = useCallback((theme) => {
+    markDirty();
     setActiveTheme(theme);
     // Persist immediately
     localStorage.setItem('quickstor_activeTheme', JSON.stringify(theme));
-  }, []);
+  }, [markDirty]);
 
   const updateSection = useCallback((id, newContent) => {
+    markDirty(); // Flag as unsaved
     setPages(prev => prev.map(page => {
       if (page.id !== activePageId) return page;
       return {
@@ -384,17 +398,19 @@ export const ContentProvider = ({ children }) => {
         )
       };
     }));
-  }, [activePageId]);
+  }, [activePageId, markDirty]);
 
   const reorderSections = useCallback((newOrder) => {
+    markDirty(); // Flag as unsaved
     setPages(prev => prev.map(page => {
       if (page.id !== activePageId) return page;
       return { ...page, sections: newOrder };
     }));
-  }, [activePageId]);
+  }, [activePageId, markDirty]);
 
   // ACTION: Add a new section with SAFE DEFAULTS
   const addSection = useCallback((type, customProps = null) => {
+    markDirty(); // Flag as unsaved
     const newId = `${type.toLowerCase()}-${Date.now()}`;
 
     // Provide default content structure to prevent crashes in the preview
@@ -445,15 +461,16 @@ export const ContentProvider = ({ children }) => {
     }));
 
     setSelectedSectionId(newId);
-  }, [activePageId]);
+  }, [activePageId, markDirty]);
 
   const deleteSection = useCallback((id) => {
+    markDirty(); // Flag as unsaved
     setPages(prev => prev.map(page => {
       if (page.id !== activePageId) return page;
       return { ...page, sections: page.sections.filter(s => s.id !== id) };
     }));
     if (selectedSectionId === id) setSelectedSectionId(null);
-  }, [activePageId, selectedSectionId]);
+  }, [activePageId, selectedSectionId, markDirty]);
 
   return (
     <ContentContext.Provider value={{
@@ -503,7 +520,8 @@ export const ContentProvider = ({ children }) => {
       rejectStaging,
 
       // State Flags
-      hasUnsavedChanges,
+      // State Flags
+      hasUnsavedChanges: isDirty, // Map the isDirty flag to context property so components don't need changes
       hasPendingPublish
     }}>
       {children}

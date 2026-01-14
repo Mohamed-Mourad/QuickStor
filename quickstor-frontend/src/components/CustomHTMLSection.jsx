@@ -2,7 +2,7 @@ import React, { useMemo, useEffect, useRef } from 'react';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
 
-const CustomHTMLSection = ({ html, css, js, content }) => {
+const CustomHTMLSection = ({ html, css, js, content, styles }) => {
     const containerRef = useRef(null);
 
     // Clean up content to prevent "undefined" strings
@@ -14,12 +14,28 @@ const CustomHTMLSection = ({ html, css, js, content }) => {
         let result = cleanHtml;
         if (content && typeof content === 'object') {
             Object.entries(content).forEach(([key, value]) => {
-                // Simple {{key}} replacement
-                result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+                const regex = new RegExp(`{{${key}}}`, 'g');
+
+                // Check if we have styles for this key
+                const fieldStyles = styles && styles[key];
+
+                if (fieldStyles && Object.keys(fieldStyles).length > 0) {
+                    // Construct style string (kebab-case for raw HTML)
+                    const styleString = Object.entries(fieldStyles)
+                        .map(([prop, val]) => {
+                            const cssProp = prop.replace(/([A-Z])/g, '-$1').toLowerCase();
+                            return `${cssProp}:${val}`;
+                        })
+                        .join(';');
+
+                    result = result.replace(regex, `<span style="${styleString}">${value}</span>`);
+                } else {
+                    result = result.replace(regex, value);
+                }
             });
         }
         return result;
-    }, [cleanHtml, content]);
+    }, [cleanHtml, content, styles]);
 
     // Execute scripts found in the HTML
     useEffect(() => {

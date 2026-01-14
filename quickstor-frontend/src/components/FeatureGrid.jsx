@@ -1,7 +1,7 @@
 import React from 'react';
 import { IconMapper } from '../utils/IconMapper';
 
-const FeatureGrid = ({ features }) => (
+const FeatureGrid = ({ features, styles = {} }) => (
   <section id="zfs" className="py-16 md:py-24 bg-[#050505] px-4 sm:px-6 lg:px-12">
     <div className="max-w-screen-2xl mx-auto">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-12">
@@ -15,8 +15,16 @@ const FeatureGrid = ({ features }) => (
                 size={24}
               />
             </div>
-            <h3 className="text-lg md:text-xl font-bold text-white mb-3">{feature.title}</h3>
-            <p className="text-gray-400 text-sm leading-relaxed">
+            <h3
+              style={styles?.cardTitle}
+              className="text-lg md:text-xl font-bold text-white mb-3"
+            >
+              {feature.title}
+            </h3>
+            <p
+              style={styles?.cardDescription}
+              className="text-gray-400 text-sm leading-relaxed"
+            >
               {feature.description}
             </p>
           </div>

@@ -90,7 +90,7 @@ const SectionList = () => {
       </div>
 
       {/* --- Sections Header --- */}
-      <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-white sticky top-0 z-10">
+      <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-white sticky top-0 z-20">
         <h2 className="font-semibold text-sm text-gray-700">Sections</h2>
 
         <div className="relative">

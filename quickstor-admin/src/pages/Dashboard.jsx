@@ -1,4 +1,4 @@
-import { Save, Palette, ExternalLink, Check, X } from 'lucide-react';
+import { Save, Palette, ExternalLink, Check, X, RotateCcw } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import EditorContainer from '../features/editor/EditorContainer';
 
@@ -41,6 +41,11 @@ const Dashboard = () => {
     await rejectStaging();
   };
 
+  const handleDiscard = () => {
+    if (!hasUnsavedChanges) return;
+    discardChanges();
+  };
+
   const handleThemeChange = (e) => {
     const selectedTheme = savedThemes.find(t => t.id === e.target.value);
     if (selectedTheme) {
@@ -78,11 +83,22 @@ const Dashboard = () => {
           {/* Staging Actions */}
           <Button
             variant="outline"
+            onClick={handleDiscard}
+            disabled={!hasUnsavedChanges}
+            title="Discard current session changes"
+            className={`transition-colors ${!hasUnsavedChanges ? 'opacity-50 cursor-not-allowed text-gray-400 border-gray-200' : 'text-gray-600 hover:text-gray-900 border-gray-200 hover:bg-gray-100'}`}
+          >
+            <RotateCcw size={16} className="mr-1" /> Reset Session
+          </Button>
+
+          <Button
+            variant="outline"
             onClick={handleReject}
             disabled={!hasPendingPublish}
+            title="Revert Staging to match Live"
             className={`transition-colors ${!hasPendingPublish ? 'opacity-50 cursor-not-allowed text-gray-400 border-gray-200' : 'text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50'}`}
           >
-            <X size={16} className="mr-1" /> Reject / Reset
+            <X size={16} className="mr-1" /> Reject Staging
           </Button>
 
           <Button

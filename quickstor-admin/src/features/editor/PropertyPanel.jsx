@@ -4,7 +4,8 @@ import { Label } from '../../components/ui/Label';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
-import { Trash2, Plus, AlertCircle, Upload, Sparkles, Loader2, Check, X, FileText, Wand2 } from 'lucide-react';
+import StyleControls from '../../components/ui/StyleControls';
+import { Trash2, Plus, AlertCircle, Upload, Sparkles, Loader2, Check, X, FileText, Wand2, Settings2 } from 'lucide-react';
 import { extractDataWithAI, generateSectionContent } from '../../utils/geminiService';
 import { getExtractionPrompt, validateExtractedData } from '../../utils/extractionPrompts';
 
@@ -313,11 +314,6 @@ const PropertyPanel = () => {
 
     return (
       <div className="space-y-6">
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-100">
-          <p className="text-[10px] text-gray-400 font-medium mb-2 uppercase tracking-wide text-center">Smart Tools</p>
-          <SmartActions />
-        </div>
-
         {features.map((feature, index) => (
           <div key={index} className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm relative group hover:border-blue-300 transition-colors">
             {/* Header / Remove */}
@@ -497,6 +493,14 @@ const PropertyPanel = () => {
 
     const { type, content } = selectedSection;
 
+    // Helper for updating specific style keys
+    const handleStyleChange = (key, newStyles) => {
+      updateSection(selectedSection.id, {
+        ...content,
+        styles: { ...(content.styles || {}), [key]: newStyles }
+      });
+    };
+
     switch (type) {
       case 'HERO':
         return (
@@ -518,6 +522,7 @@ const PropertyPanel = () => {
                 onChange={(e) => handleChange('badge', e.target.value)}
                 className="text-gray-900"
               />
+              <StyleControls styles={content.styles?.badge} onChange={s => handleStyleChange('badge', s)} />
             </div>
             <div className="space-y-2">
               <Label>Title (Line 1)</Label>
@@ -529,6 +534,7 @@ const PropertyPanel = () => {
                 })}
                 className="text-gray-900"
               />
+              <StyleControls styles={content.styles?.titleLine1} onChange={s => handleStyleChange('titleLine1', s)} />
             </div>
             <div className="space-y-2">
               <Label>Title Highlight</Label>
@@ -540,6 +546,7 @@ const PropertyPanel = () => {
                 })}
                 className="text-gray-900"
               />
+              <StyleControls styles={content.styles?.titleHighlight} onChange={s => handleStyleChange('titleHighlight', s)} />
             </div>
             <div className="space-y-2">
               <Label>Subtitle</Label>
@@ -548,6 +555,7 @@ const PropertyPanel = () => {
                 value={content.subtitle || ''}
                 onChange={(e) => handleChange('subtitle', e.target.value)}
               />
+              <StyleControls styles={content.styles?.subtitle} onChange={s => handleStyleChange('subtitle', s)} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -557,6 +565,7 @@ const PropertyPanel = () => {
                   onChange={(e) => handleChange('primaryCta', e.target.value)}
                   className="text-gray-900"
                 />
+                <StyleControls styles={content.styles?.primaryCta} onChange={s => handleStyleChange('primaryCta', s)} />
               </div>
               <div className="space-y-2">
                 <Label>Secondary CTA</Label>
@@ -565,34 +574,44 @@ const PropertyPanel = () => {
                   onChange={(e) => handleChange('secondaryCta', e.target.value)}
                   className="text-gray-900"
                 />
+                <StyleControls styles={content.styles?.secondaryCta} onChange={s => handleStyleChange('secondaryCta', s)} />
               </div>
             </div>
           </div>
         );
 
       case 'FEATURE_GRID':
-        return renderFeatureGridFields();
+        return (
+          <div className="space-y-6">
+            {/* AI Smart Tools */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-100">
+              <p className="text-[10px] text-gray-400 font-medium mb-2 uppercase tracking-wide text-center">Smart Tools</p>
+              <SmartActions />
+            </div>
+
+            {/* Global Styles */}
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <p className="text-[10px] text-gray-400 font-medium mb-3 uppercase tracking-wide text-center">Card Styles</p>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <Label className="text-xs">Card Title Style</Label>
+                  <StyleControls styles={content.styles?.cardTitle} onChange={s => handleStyleChange('cardTitle', s)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Card Description Style</Label>
+                  <StyleControls styles={content.styles?.cardDescription} onChange={s => handleStyleChange('cardDescription', s)} />
+                </div>
+              </div>
+            </div>
+
+            {renderFeatureGridFields()}
+          </div>
+        );
 
       case 'COMPARISON_GRAPH':
         return (
           <div className="space-y-6">
-            <div className="space-y-2">
-              <Label>Section Title</Label>
-              <Input
-                value={content.title || ''}
-                onChange={(e) => handleChange('title', e.target.value)}
-                className="text-gray-900"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <textarea
-                className="flex min-h-[120px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 placeholder:text-gray-400"
-                value={content.description || ''}
-                onChange={(e) => handleChange('description', e.target.value)}
-              />
-            </div>
-
             {/* Graph Data Import Area */}
             <div className="p-4 bg-gradient-to-br from-gray-50 to-blue-50 border border-gray-200 rounded-lg space-y-3">
               <div className="flex items-center justify-between">
@@ -626,6 +645,25 @@ const PropertyPanel = () => {
                 </table>
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label>Section Title</Label>
+              <Input
+                value={content.title || ''}
+                onChange={(e) => handleChange('title', e.target.value)}
+                className="text-gray-900"
+              />
+              <StyleControls styles={content.styles?.title} onChange={s => handleStyleChange('title', s)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <textarea
+                className="flex min-h-[120px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 placeholder:text-gray-400"
+                value={content.description || ''}
+                onChange={(e) => handleChange('description', e.target.value)}
+              />
+              <StyleControls styles={content.styles?.description} onChange={s => handleStyleChange('description', s)} />
+            </div>
           </div>
         );
 
@@ -653,8 +691,15 @@ const PropertyPanel = () => {
             </div>
 
             {content.schema.map((field) => (
-              <div key={field.key} className="space-y-2">
-                <Label>{field.label}</Label>
+              <div key={field.key} className="space-y-2 p-3 bg-white border border-gray-100 rounded-lg shadow-sm">
+                <div className="flex justify-between items-center mb-1">
+                  <Label>{field.label}</Label>
+                  {/* Visual indicator if styles are applied */}
+                  {(content.styles?.[field.key] && Object.keys(content.styles[field.key]).length > 0) && (
+                    <Settings2 size={12} className="text-blue-500" />
+                  )}
+                </div>
+
                 {field.type === 'textarea' ? (
                   <textarea
                     className="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 placeholder:text-gray-400"
@@ -670,6 +715,12 @@ const PropertyPanel = () => {
                     placeholder={field.description}
                   />
                 )}
+
+                {/* Style Controls for this field */}
+                <StyleControls
+                  styles={content.styles?.[field.key] || {}}
+                  onChange={(newStyles) => handleStyleChange(field.key, newStyles)}
+                />
               </div>
             ))}
           </div>

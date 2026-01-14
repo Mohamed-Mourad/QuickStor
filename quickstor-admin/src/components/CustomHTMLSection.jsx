@@ -5,7 +5,7 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 
-const CustomHTMLSection = ({ html, css, content = {}, className = '' }) => {
+const CustomHTMLSection = ({ html, css, content = {}, styles = {}, className = '' }) => {
     const containerRef = useRef(null);
 
     // Interpolate content into HTML
@@ -13,12 +13,29 @@ const CustomHTMLSection = ({ html, css, content = {}, className = '' }) => {
         if (!html) return '';
         let processed = html;
         Object.entries(content).forEach(([key, value]) => {
-            // Simple replace for {{key}}
             const regex = new RegExp(`{{${key}}}`, 'g');
-            processed = processed.replace(regex, value || '');
+
+            // Check for styles
+            const fieldStyles = styles[key];
+            if (fieldStyles && Object.keys(fieldStyles).length > 0) {
+                // Construct style string
+                const styleString = Object.entries(fieldStyles)
+                    .map(([prop, val]) => {
+                        // Convert camelCase to kebab-case (e.g. fontSize -> font-size) is NOT strictly needed for React inline styles, 
+                        // BUT here we are generating raw HTML string to inject. So we DO need standard CSS syntax.
+                        const cssProp = prop.replace(/([A-Z])/g, '-$1').toLowerCase();
+                        return `${cssProp}:${val}`;
+                    })
+                    .join(';');
+
+                processed = processed.replace(regex, `<span style="${styleString}">${value || ''}</span>`);
+            } else {
+                // Default behavior
+                processed = processed.replace(regex, value || '');
+            }
         });
         return processed;
-    }, [html, content]);
+    }, [html, content, styles]);
 
     // Execute scripts found in the HTML
     useEffect(() => {

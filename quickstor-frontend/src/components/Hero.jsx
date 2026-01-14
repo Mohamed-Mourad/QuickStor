@@ -2,7 +2,7 @@ import React from 'react';
 import { ArrowRight, Activity } from 'lucide-react';
 import { IconMapper } from '../utils/IconMapper';
 
-const Hero = ({ badge, title, subtitle, primaryCta, secondaryCta, trustIndicators, serverStatus }) => {
+const Hero = ({ badge, title, subtitle, primaryCta, secondaryCta, trustIndicators, serverStatus, styles = {} }) => {
   return (
     <section className="relative pt-24 md:pt-32 pb-16 md:pb-20 px-4 sm:px-6 lg:px-12 min-h-screen flex items-center bg-[#050505] overflow-hidden">
       {/* Abstract Tech Grid Background */}
@@ -21,7 +21,10 @@ const Hero = ({ badge, title, subtitle, primaryCta, secondaryCta, trustIndicator
         {/* Text Content */}
         <div className="text-center lg:text-left">
           {badge && (
-            <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 border border-blue-500/30 bg-blue-900/10 rounded-full text-blue-400 text-[10px] md:text-xs font-mono tracking-widest">
+            <div
+              style={styles?.badge}
+              className="inline-flex items-center gap-2 px-3 py-1 mb-6 border border-blue-500/30 bg-blue-900/10 rounded-full text-blue-400 text-[10px] md:text-xs font-mono tracking-widest"
+            >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
@@ -31,22 +34,34 @@ const Hero = ({ badge, title, subtitle, primaryCta, secondaryCta, trustIndicator
           )}
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold text-white leading-[1.1] mb-6 tracking-tight">
-            {title?.line1} <br className="hidden sm:block" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-indigo-400">
+            <span style={styles?.titleLine1}>{title?.line1}</span> <br className="hidden sm:block" />
+            <span
+              style={styles?.titleHighlight}
+              className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-indigo-400"
+            >
               {title?.highlight}
             </span>
           </h1>
 
-          <p className="text-base sm:text-lg md:text-xl text-gray-400 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed lg:border-l-2 border-blue-900 lg:pl-6 border-l-0">
+          <p
+            style={styles?.subtitle}
+            className="text-base sm:text-lg md:text-xl text-gray-400 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed lg:border-l-2 border-blue-900 lg:pl-6 border-l-0"
+          >
             {subtitle}
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-            <button className="bg-white text-black font-bold py-3 md:py-4 px-6 md:px-8 rounded-sm hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 group text-sm md:text-base">
+            <button
+              style={styles?.primaryCta}
+              className="bg-white text-black font-bold py-3 md:py-4 px-6 md:px-8 rounded-sm hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 group text-sm md:text-base"
+            >
               {primaryCta}
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
-            <button className="border border-gray-700 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-sm hover:border-blue-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors text-sm md:text-base">
+            <button
+              style={styles?.secondaryCta}
+              className="border border-gray-700 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-sm hover:border-blue-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors text-sm md:text-base"
+            >
               {secondaryCta}
             </button>
           </div>
