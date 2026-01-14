@@ -50,14 +50,24 @@ export const ContentProvider = ({ children }) => {
   // Custom Sections Library - Start empty, Firestore is source of truth
   const [customSections, setCustomSections] = useState([]);
 
+  // Change Tracking State
+  const [stagingSnapshot, setStagingSnapshot] = useState(null); // Deep copy of what's in DB
+  const [liveSnapshot, setLiveSnapshot] = useState(null);       // Deep copy of Live DB
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [hasPendingPublish, setHasPendingPublish] = useState(false);
+
+  // Load ALL content from Firestore on startup (sync across browsers)
   // Load ALL content from Firestore on startup (sync across browsers)
   useEffect(() => {
     const loadFromFirestore = async () => {
       try {
-        // Load from STAGING by default
-        const docSnap = await getDoc(doc(db, 'sites', 'quickstor-staging'));
-        if (docSnap.exists()) {
-          const data = docSnap.data();
+        // 1. Fetch Staging
+        const stagingRef = doc(db, 'sites', 'quickstor-staging');
+        const stagingSnap = await getDoc(stagingRef);
+
+        if (stagingSnap.exists()) {
+          const data = stagingSnap.data();
+          setStagingSnapshot(data);
 
           // Sync pages from Firestore
           if (data.pages && Array.isArray(data.pages)) {
@@ -89,14 +99,20 @@ export const ContentProvider = ({ children }) => {
             localStorage.setItem('quickstor_activeTheme', JSON.stringify(data.theme));
           }
 
-          // Sync custom sections library (Firestore is source of truth)
-          // Default to empty array if not present in Firestore
+          // Sync custom sections
           const firestoreSections = data.customSections && Array.isArray(data.customSections)
             ? data.customSections
             : [];
           setCustomSections(firestoreSections);
           localStorage.setItem('quickstor_custom_sections', JSON.stringify(firestoreSections));
         }
+
+        // 2. Fetch Live (for comparison only)
+        const liveSnap = await getDoc(doc(db, 'sites', 'quickstor-live'));
+        if (liveSnap.exists()) {
+          setLiveSnapshot(liveSnap.data());
+        }
+
       } catch (error) {
         console.error('Error loading from Firestore:', error);
       }
@@ -104,6 +120,49 @@ export const ContentProvider = ({ children }) => {
 
     loadFromFirestore();
   }, []);
+
+  // --- Change Detection Logic ---
+
+  // Helper to strip internal timestamps for comparison
+  const normalizeForComparison = (data) => {
+    if (!data) return {};
+    const { lastUpdated, lastPublished, ...rest } = data;
+    return rest;
+  };
+
+  // 1. Check if Local differs from Staging (Unsaved Changes)
+  useEffect(() => {
+    if (!stagingSnapshot) return;
+
+    const currentLocalState = {
+      navbar,
+      footer,
+      pages,
+      theme: activeTheme,
+      savedThemes,
+      customSections
+    };
+
+    const cleanLocal = normalizeForComparison(currentLocalState);
+    const cleanStaging = normalizeForComparison(stagingSnapshot);
+
+    const isDifferent = JSON.stringify(cleanLocal) !== JSON.stringify(cleanStaging);
+    setHasUnsavedChanges(isDifferent);
+  }, [navbar, footer, pages, activeTheme, savedThemes, customSections, stagingSnapshot]);
+
+  // 2. Check if Staging differs from Live (Pending Publish)
+  useEffect(() => {
+    if (!stagingSnapshot || !liveSnapshot) {
+      setHasPendingPublish(false);
+      return;
+    }
+
+    const cleanStaging = normalizeForComparison(stagingSnapshot);
+    const cleanLive = normalizeForComparison(liveSnapshot);
+
+    const isDifferent = JSON.stringify(cleanStaging) !== JSON.stringify(cleanLive);
+    setHasPendingPublish(isDifferent);
+  }, [stagingSnapshot, liveSnapshot]);
 
   // Helper to get active page
   const activePage = pages.find(p => p.id === activePageId) || pages[0];
@@ -122,7 +181,7 @@ export const ContentProvider = ({ children }) => {
     // 2. Publish to Firestore (STAGING)
     try {
       const stagingContentRef = doc(db, 'sites', 'quickstor-staging');
-      await setDoc(stagingContentRef, {
+      const newData = {
         navbar,
         footer,
         pages,
@@ -130,7 +189,13 @@ export const ContentProvider = ({ children }) => {
         savedThemes: savedThemes,
         customSections: customSections,
         lastUpdated: new Date()
-      });
+      };
+
+      await setDoc(stagingContentRef, newData);
+
+      // Update local snapshot after successful save
+      setStagingSnapshot(newData);
+
       console.log('Content published to Firestore (Staging)');
       return true;
     } catch (error) {
@@ -156,6 +221,10 @@ export const ContentProvider = ({ children }) => {
         ...data,
         lastPublished: new Date()
       });
+
+      // Update Live snapshot to match
+      setLiveSnapshot(data);
+
       console.log('Staging content promoted to Live');
       return true;
     } catch (error) {
@@ -187,6 +256,10 @@ export const ContentProvider = ({ children }) => {
 
       // 3. Update staging in Firestore to match live
       await setDoc(doc(db, 'sites', 'quickstor-staging'), data);
+
+      // Update snapshots
+      setStagingSnapshot(data);
+      setLiveSnapshot(data);
 
       console.log('Staging reverted to match Live');
       return true;
@@ -427,7 +500,11 @@ export const ContentProvider = ({ children }) => {
 
       // Staging Workflow
       publishStagingToLive,
-      rejectStaging
+      rejectStaging,
+
+      // State Flags
+      hasUnsavedChanges,
+      hasPendingPublish
     }}>
       {children}
     </ContentContext.Provider>

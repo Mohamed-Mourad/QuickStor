@@ -12,10 +12,13 @@ const Dashboard = () => {
     savedThemes,
     applyTheme,
     publishStagingToLive,
-    rejectStaging
+    rejectStaging,
+    hasUnsavedChanges,
+    hasPendingPublish
   } = useContentStore();
 
   const handleSaveToStaging = async () => {
+    if (!hasUnsavedChanges) return;
     const success = await saveContent();
     if (success) {
       console.log("Saved to staging");
@@ -24,6 +27,7 @@ const Dashboard = () => {
   };
 
   const handlePublishLive = async () => {
+    if (!hasPendingPublish) return;
     if (confirm("Are you sure you want to publish the current Staging content to the LIVE website?")) {
       const success = await publishStagingToLive();
       if (success) {
@@ -33,6 +37,7 @@ const Dashboard = () => {
   };
 
   const handleReject = async () => {
+    if (!hasPendingPublish) return;
     await rejectStaging();
   };
 
@@ -71,15 +76,29 @@ const Dashboard = () => {
           <div className="h-6 w-px bg-gray-300 mx-1 hidden sm:block"></div>
 
           {/* Staging Actions */}
-          <Button variant="outline" onClick={handleReject} className="text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50">
+          <Button
+            variant="outline"
+            onClick={handleReject}
+            disabled={!hasPendingPublish}
+            className={`transition-colors ${!hasPendingPublish ? 'opacity-50 cursor-not-allowed text-gray-400 border-gray-200' : 'text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50'}`}
+          >
             <X size={16} className="mr-1" /> Reject / Reset
           </Button>
 
-          <Button variant="outline" onClick={handleSaveToStaging} className="border-blue-200 text-blue-700 hover:bg-blue-50">
+          <Button
+            variant="outline"
+            onClick={handleSaveToStaging}
+            disabled={!hasUnsavedChanges}
+            className={`transition-colors ${!hasUnsavedChanges ? 'opacity-50 cursor-not-allowed border-gray-200 text-gray-400' : 'border-blue-200 text-blue-700 hover:bg-blue-50'}`}
+          >
             <Save size={16} className="mr-1" /> Save to Staging
           </Button>
 
-          <Button className="gap-2 bg-green-600 hover:bg-green-700 text-white" onClick={handlePublishLive}>
+          <Button
+            onClick={handlePublishLive}
+            disabled={!hasPendingPublish}
+            className={`gap-2 transition-colors ${!hasPendingPublish ? 'bg-gray-200 text-gray-400 cursor-not-allowed hover:bg-gray-200' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+          >
             <Check size={16} /> Confirm & Publish to Live
           </Button>
         </div>
