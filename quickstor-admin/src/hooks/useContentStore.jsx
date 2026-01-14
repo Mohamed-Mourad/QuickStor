@@ -54,7 +54,8 @@ export const ContentProvider = ({ children }) => {
   useEffect(() => {
     const loadFromFirestore = async () => {
       try {
-        const docSnap = await getDoc(doc(db, 'sites', 'quickstor-live'));
+        // Load from STAGING by default
+        const docSnap = await getDoc(doc(db, 'sites', 'quickstor-staging'));
         if (docSnap.exists()) {
           const data = docSnap.data();
 
@@ -118,10 +119,10 @@ export const ContentProvider = ({ children }) => {
     localStorage.setItem('quickstor_savedThemes', JSON.stringify(savedThemes));
     localStorage.setItem('quickstor_custom_sections', JSON.stringify(customSections));
 
-    // 2. Publish to Firestore (includes all data for cross-browser sync)
+    // 2. Publish to Firestore (STAGING)
     try {
-      const liveContentRef = doc(db, 'sites', 'quickstor-live');
-      await setDoc(liveContentRef, {
+      const stagingContentRef = doc(db, 'sites', 'quickstor-staging');
+      await setDoc(stagingContentRef, {
         navbar,
         footer,
         pages,
@@ -130,14 +131,71 @@ export const ContentProvider = ({ children }) => {
         customSections: customSections,
         lastUpdated: new Date()
       });
-      console.log('Content published to Firestore');
+      console.log('Content published to Firestore (Staging)');
       return true;
     } catch (error) {
       console.error('Error publishing to Firestore:', error);
-      alert('Failed to publish: ' + error.message);
+      alert('Failed to publish to staging: ' + error.message);
       return false;
     }
   }, [navbar, footer, pages, activeTheme, savedThemes, customSections]);
+
+  // --- Staging -> Live Actions ---
+
+  const publishStagingToLive = useCallback(async () => {
+    try {
+      // 1. Get current staging data
+      const stagingSnap = await getDoc(doc(db, 'sites', 'quickstor-staging'));
+      if (!stagingSnap.exists()) {
+        throw new Error("No staging content found to publish.");
+      }
+      const data = stagingSnap.data();
+
+      // 2. Write to live
+      await setDoc(doc(db, 'sites', 'quickstor-live'), {
+        ...data,
+        lastPublished: new Date()
+      });
+      console.log('Staging content promoted to Live');
+      return true;
+    } catch (error) {
+      console.error('Error publishing to live:', error);
+      alert('Failed to publish to live: ' + error.message);
+      return false;
+    }
+  }, []);
+
+  const rejectStaging = useCallback(async () => {
+    if (!confirm("Are you sure? This will overwrite your current staging (draft) work with the content currently on the Live site.")) {
+      return false;
+    }
+    try {
+      // 1. Get current live data
+      const liveSnap = await getDoc(doc(db, 'sites', 'quickstor-live'));
+      if (!liveSnap.exists()) {
+        throw new Error("No live content found to revert to.");
+      }
+      const data = liveSnap.data();
+
+      // 2. Update local state to match live
+      if (data.navbar) setNavbar(data.navbar);
+      if (data.footer) setFooter(data.footer);
+      if (data.pages) setPages(data.pages);
+      if (data.theme) setActiveTheme(data.theme);
+      if (data.savedThemes) setSavedThemes(data.savedThemes);
+      if (data.customSections) setCustomSections(data.customSections);
+
+      // 3. Update staging in Firestore to match live
+      await setDoc(doc(db, 'sites', 'quickstor-staging'), data);
+
+      console.log('Staging reverted to match Live');
+      return true;
+    } catch (error) {
+      console.error('Error rejecting staging:', error);
+      alert('Failed to revert staging: ' + error.message);
+      return false;
+    }
+  }, []);
 
   const discardChanges = useCallback(() => {
     if (!confirm('Are you sure you want to discard all unsaved changes? This will revert to the last valid save.')) return;
@@ -363,8 +421,13 @@ export const ContentProvider = ({ children }) => {
       setCustomSections,
 
       // Persistence
+      // Persistence
       saveContent,
-      discardChanges
+      discardChanges,
+
+      // Staging Workflow
+      publishStagingToLive,
+      rejectStaging
     }}>
       {children}
     </ContentContext.Provider>

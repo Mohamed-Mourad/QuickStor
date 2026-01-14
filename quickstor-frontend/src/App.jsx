@@ -83,7 +83,8 @@ export default function App() {
     console.log("App mounted. Connecting to Firestore...");
 
     // Listen for real-time updates from Firestore
-    const unsub = onSnapshot(doc(db, 'sites', 'quickstor-live'), (docSnap) => {
+    const siteDocId = import.meta.env.VITE_SITE_DOC_ID || 'quickstor-live';
+    const unsub = onSnapshot(doc(db, 'sites', siteDocId), (docSnap) => {
       console.log("Firestore update received. Exists:", docSnap.exists());
 
       if (docSnap.exists()) {
