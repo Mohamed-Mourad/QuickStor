@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 
-const Navbar = ({ logo, links, ctaText, onLogoClick }) => {
+const Navbar = ({ logo, links, ctaText, onLogoClick, className, style }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const navLinks = links || [];
 
   return (
-    <nav className="fixed w-full z-50 border-b border-gray-900 bg-black/95 backdrop-blur-md">
+    <nav
+      className={`fixed w-full z-50 border-b border-gray-900 bg-black/95 backdrop-blur-md ${className || ''}`}
+      style={style}
+    >
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-12 h-16 md:h-20 flex items-center justify-between">
 
         {/* Logo Area */}

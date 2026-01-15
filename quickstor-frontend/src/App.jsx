@@ -10,11 +10,16 @@ import Footer from './components/Footer';
 // Import Section Renderer
 import { SectionRenderer } from './components/SectionRenderer';
 
+// Import Staging Banner
+import StagingBanner from './components/StagingBanner';
+
 // Import Data
 import { defaultContent } from './data/defaultContent';
 
 // Import Theme Utils
 import { defaultTheme, applyThemeToDocument } from './utils/themeUtils';
+
+const IS_STAGING = import.meta.env.VITE_SITE_DOC_ID === 'quickstor-staging';
 
 // Page Component - Renders dynamic sections based on current route
 function PageContent({ pages, navbar, footer }) {
@@ -47,17 +52,22 @@ function PageContent({ pages, navbar, footer }) {
 
   return (
     <div className="bg-[#050505] min-h-screen text-white font-sans selection:bg-blue-600 selection:text-white">
+      <StagingBanner />
+
       {/* Fixed Header */}
-      <Navbar {...navbar} />
+      <Navbar {...navbar} className={IS_STAGING ? 'top-12' : ''} />
 
       {/* Dynamic Sections Loop - Show 404 message if no page found and no fallback */}
-      {pageToRender ? (
-        <SectionRenderer sections={pageToRender.sections || []} />
-      ) : (
-        <div className="flex items-center justify-center min-h-[50vh] text-gray-400">
-          <p>Page not found</p>
-        </div>
-      )}
+      <div className={IS_STAGING ? 'pt-12' : ''}>
+        {pageToRender ? (
+          <SectionRenderer sections={pageToRender.sections || []} />
+        ) : (
+          <div className="flex items-center justify-center min-h-[50vh] text-gray-400">
+            <p>Page not found</p>
+          </div>
+        )}
+      </div>
+
 
       {/* Fixed Footer */}
       <Footer {...footer} />
