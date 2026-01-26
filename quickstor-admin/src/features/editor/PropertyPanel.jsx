@@ -14,8 +14,7 @@ const PropertyPanel = () => {
   const fileInputRef = useRef(null);
 
   // AI State
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
   const [extractionError, setExtractionError] = useState(null);
 
@@ -23,6 +22,7 @@ const PropertyPanel = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [userPrompt, setUserPrompt] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
 
   // Helper to determine what we are editing
   const isNavbar = selectedSectionId === 'NAVBAR';
@@ -165,34 +165,48 @@ const PropertyPanel = () => {
     );
   };
 
-  // --- AI-Powered File Processing ---
-  const handleFileUpload = async (event) => {
+  // --- AI Processing Logic ---
+  const handleFileSelect = (event) => {
     const file = event.target.files[0];
-    if (!file) return;
+    if (file) {
+      setSelectedFile(file);
+    }
+    event.target.value = ''; // Reset input to allow re-selecting same file
+  };
 
-    setIsExtracting(true);
+  const handleProcessAI = async () => {
+    if (!selectedFile && !userPrompt.trim()) return;
+
+    setIsProcessing(true);
     setExtractionError(null);
     setExtractedData(null);
 
     try {
-      const text = await file.text();
+      if (selectedFile) {
+        // Extraction Mode (with optional prompt)
+        const text = await selectedFile.text();
+        const result = await extractDataWithAI(text, selectedSection, getExtractionPrompt, userPrompt);
 
-      // Call AI to extract data (with fallback to CSV)
-      const result = await extractDataWithAI(text, selectedSection, getExtractionPrompt);
+        // Validate the extracted data
+        if (!validateExtractedData(result.data, selectedSection.type)) {
+          throw new Error('Returned data in an unexpected format. Please try again or use a different file.');
+        }
 
-      // Validate the extracted data
-      if (!validateExtractedData(result.data, selectedSection.type)) {
-        throw new Error('Returned data in an unexpected format. Please try again or use a different file.');
+        setExtractedData(result);
+      } else {
+        // Generation Mode (Prompt Only)
+        const generatedData = await generateSectionContent(selectedSection.type, userPrompt, selectedSection.content);
+        setExtractedData({ data: generatedData, method: 'ai-gen' });
       }
 
-      setExtractedData(result); // Now stores { data, method }
+      setShowPromptModal(false);
       setShowConfirmModal(true);
+      // Don't clear prompt/file yet in case they cancel and want to retry
     } catch (error) {
-      console.error('Extraction Error:', error);
-      setExtractionError(error.message || 'Failed to extract data. Please try again.');
+      console.error('AI Error:', error);
+      setExtractionError(error.message || 'Failed to process request. Please try again.');
     } finally {
-      setIsExtracting(false);
-      event.target.value = ''; // Reset input
+      setIsProcessing(false);
     }
   };
 
@@ -233,51 +247,20 @@ const PropertyPanel = () => {
     updateSection(selectedSection.id, newContent);
   };
 
-  // --- AI Generation Logic ---
-  const handleAIGenerate = async () => {
-    if (!userPrompt.trim()) return;
 
-    setIsGenerating(true);
-    setExtractionError(null);
-
-    try {
-      const generatedData = await generateSectionContent(selectedSection.type, userPrompt, selectedSection.content);
-
-      // Reuse the extracted data logic for preview/confirm
-      setExtractedData({ data: generatedData, method: 'ai-gen' });
-      setShowPromptModal(false);
-      setShowConfirmModal(true);
-      setUserPrompt('');
-    } catch (error) {
-      setExtractionError(error.message);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
 
   // --- AI Smart Actions Component ---
   const SmartActions = ({ compact = false }) => (
     <div className="space-y-3 p-1">
-      <div className="grid grid-cols-2 gap-2">
-        {/* File Import */}
-        <Button
-          onClick={triggerFileUpload}
-          disabled={isExtracting || isGenerating}
-          className={`w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-2 border-none ${compact ? 'h-9 text-xs px-2' : 'h-10'}`}
-        >
-          {isExtracting ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-          Import File
-        </Button>
-
-        {/* AI Generation */}
+      <div className="grid grid-cols-1 gap-2">
         <Button
           onClick={() => setShowPromptModal(true)}
-          disabled={isExtracting || isGenerating}
+          disabled={isProcessing}
           className={`w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white border-none shadow-md gap-2 ${compact ? 'h-9 text-xs px-2' : 'h-10'}`}
         >
-          {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-          Write with AI
+          {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          AI Assistant
         </Button>
       </div>
 
@@ -749,7 +732,7 @@ const PropertyPanel = () => {
         ref={fileInputRef}
         className="hidden"
         accept=".csv,.txt,.md,.json,.text"
-        onChange={handleFileUpload}
+        onChange={handleFileSelect}
       />
 
       <div className="p-5 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-gray-200">
@@ -799,40 +782,91 @@ const PropertyPanel = () => {
         </div>
       </Modal>
 
-      {/* Prompt Input Modal */}
+      {/* Unified AI Assistant Modal */}
       <Modal
         isOpen={showPromptModal}
-        onClose={() => setShowPromptModal(false)}
-        title="Generate with AI"
+        onClose={() => {
+          setShowPromptModal(false);
+          setSelectedFile(null);
+          setUserPrompt('');
+        }}
+        title="AI Assistant"
         className="max-w-lg"
       >
         <div className="space-y-4">
-          <div className="bg-violet-50 p-4 rounded-lg border border-violet-100">
-            <p className="text-sm text-violet-800 mb-2 font-medium">What kind of content do you want?</p>
-            <textarea
-              autoFocus
-              className="w-full h-32 p-3 rounded-md border border-violet-200 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-sm text-gray-900 bg-white placeholder:text-gray-400"
-              placeholder="e.g., A punchy hero section for a cybersecurity startup emphasizing zero-trust architecture..."
-              value={userPrompt}
-              onChange={(e) => setUserPrompt(e.target.value)}
-            />
+          <div className="bg-violet-50 p-4 rounded-lg border border-violet-100 space-y-4">
+            {/* Prompt Input */}
+            <div>
+              <Label className="text-violet-900 mb-1.5 block">Instructions</Label>
+              <textarea
+                autoFocus
+                className="w-full h-24 p-3 rounded-md border border-violet-200 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 text-sm text-gray-900 bg-white placeholder:text-gray-400"
+                placeholder={selectedFile
+                  ? "Describe what to extract from this file (e.g., 'Focus on the pricing tier features')..."
+                  : "Describe the content you want to generate (e.g., A punchy hero section for...)"}
+                value={userPrompt}
+                onChange={(e) => setUserPrompt(e.target.value)}
+              />
+            </div>
+
+            {/* File Upload Area inside Modal */}
+            <div>
+              <Label className="text-violet-900 mb-1.5 block">Reference File (Optional)</Label>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current.click()}
+                  className="bg-white border-violet-200 text-violet-700 hover:bg-violet-50 gap-2 shrink-0"
+                >
+                  <Upload size={14} />
+                  {selectedFile ? 'Change File' : 'Upload File'}
+                </Button>
+
+                {selectedFile ? (
+                  <div className="flex-1 flex items-center justify-between bg-white border border-violet-200 rounded px-3 py-2 text-sm">
+                    <span className="truncate max-w-[180px] text-gray-700" title={selectedFile.name}>
+                      {selectedFile.name}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedFile(null);
+                        // Reset file input value
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="text-gray-400 hover:text-red-500"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-xs text-violet-400 italic">
+                    Upload a document to extract data from
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="flex gap-3 justify-end">
+          <div className="flex gap-3 justify-end pt-2">
             <Button
-              onClick={() => setShowPromptModal(false)}
+              onClick={() => {
+                setShowPromptModal(false);
+                setSelectedFile(null);
+                setUserPrompt('');
+              }}
               variant="outline"
               className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:text-gray-900"
             >
               Cancel
             </Button>
             <Button
-              onClick={handleAIGenerate}
-              disabled={!userPrompt.trim() || isGenerating}
-              className="bg-violet-600 hover:bg-violet-700 text-white gap-2"
+              onClick={handleProcessAI}
+              disabled={(!userPrompt.trim() && !selectedFile) || isProcessing}
+              className="bg-violet-600 hover:bg-violet-700 text-white gap-2 shadow-sm"
             >
-              {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-              Generate Content
+              {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              {selectedFile ? 'Analyze & Extract' : 'Generate Content'}
             </Button>
           </div>
         </div>

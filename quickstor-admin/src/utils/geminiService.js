@@ -420,11 +420,11 @@ export function parseCSVFallback(csvText, sectionType) {
  * Main function to extract data from file content using AI
  * Falls back to CSV parsing if AI fails
  */
-export async function extractDataWithAI(fileContent, sectionOrType, getPrompt) {
+export async function extractDataWithAI(fileContent, sectionOrType, getPrompt, userPrompt = null) {
     const sectionType = typeof sectionOrType === 'object' ? sectionOrType.type : sectionOrType;
 
     try {
-        const prompt = getPrompt(sectionOrType, fileContent);
+        const prompt = getPrompt(sectionOrType, fileContent, userPrompt);
         const response = await callGeminiAPI(prompt);
         const extractedData = extractJSONFromResponse(response);
         return { data: extractedData, method: 'ai' };

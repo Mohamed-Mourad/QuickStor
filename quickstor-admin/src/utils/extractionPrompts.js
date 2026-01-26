@@ -21,8 +21,25 @@ const AVAILABLE_ICONS = [
  * @param {string} fileContent - The raw file content to extract from
  * @returns {string} - The complete prompt to send to Gemini
  */
-export function getExtractionPrompt(sectionOrType, fileContent) {
+export function getExtractionPrompt(sectionOrType, fileContent, userPrompt = '') {
   const sectionType = typeof sectionOrType === 'object' ? sectionOrType.type : sectionOrType;
+
+  // Common instructions for messy data
+  const MESSY_DATA_INSTRUCTIONS = `
+    IMPORTANT: The provided document may be unstructured, messy, incomplete, or contain irrelevant information/noise. 
+    Your task is to intelligently identify and extract ONLY the relevant information that matches the schema below. 
+    Ignore any unrelated text, system logs, headers, or garbage data. 
+    If the document contains multiple potential candidates, use the user's instructions (if provided) or choose the most high-quality content.
+  `;
+
+  // User instructions block
+  const USER_INSTRUCTION_BLOCK = userPrompt ? `
+    USER INSTRUCTIONS:
+    The user has provided specific context/instructions for this file:
+    "${userPrompt}"
+    
+    Use these instructions to guide your extraction (e.g., which specific data points to focus on, or how to interpret ambiguous data).
+  ` : '';
 
   if (sectionType === 'CUSTOM_HTML') {
     const schema = sectionOrType.content?.schema || [];
@@ -31,6 +48,8 @@ export function getExtractionPrompt(sectionOrType, fileContent) {
     ).join('\n');
 
     return `You are a data extraction assistant. Extract content from the document to populate a website section.
+    ${MESSY_DATA_INSTRUCTIONS}
+    ${USER_INSTRUCTION_BLOCK}
 
 OUTPUT SCHEMA (JSON Only):
 {
@@ -48,7 +67,7 @@ EXTRACTION RULES:
 
 DOCUMENT CONTENT:
 """
-${fileContent.substring(0, 8000)}
+${fileContent.substring(0, 12000)}
 """
 
 JSON OUTPUT:`;
@@ -56,6 +75,8 @@ JSON OUTPUT:`;
 
   const prompts = {
     COMPARISON_GRAPH: `You are a data extraction assistant. Extract performance benchmark data from the following document.
+    ${MESSY_DATA_INSTRUCTIONS}
+    ${USER_INSTRUCTION_BLOCK}
 
 The data should be formatted as a JSON array where each item represents a competitor or product with their performance metrics.
 
@@ -84,6 +105,8 @@ ${fileContent}
 JSON OUTPUT:`,
 
     FEATURE_GRID: `You are a data extraction assistant. Extract feature/benefit information from the following document to create feature cards.
+    ${MESSY_DATA_INSTRUCTIONS}
+    ${USER_INSTRUCTION_BLOCK}
 
 OUTPUT SCHEMA (strict):
 [
@@ -113,6 +136,8 @@ ${fileContent}
 JSON OUTPUT:`,
 
     HERO: `You are a data extraction assistant. Extract landing page hero section content from the following document.
+    ${MESSY_DATA_INSTRUCTIONS}
+    ${USER_INSTRUCTION_BLOCK}
 
 OUTPUT SCHEMA (strict):
 {
